@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Google Drive setup · Margin</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="polish.css" />
+  </head>
+  <body>
+    <main class="reader">
+      <span class="eyebrow">Margin · Google Drive</span>
+      <h1>Connect your library across devices</h1>
+      <p>
+        This development build needs a Google OAuth client before Google sign-in works. This is a
+        one-time setup for the maintainer; users of a configured published build only click Connect
+        Google Drive.
+      </p>
+      <h2>Edge, Brave, and Firefox</h2>
+      <p>
+        Create a Google OAuth <strong>Web application</strong> client instead of a Chrome Extension
+        client. Copy Margin’s native callback from its Settings setup section and register it under
+        <strong>Authorized redirect URIs</strong>. Register both browser callbacks if sharing the
+        client. Never place a client secret in an extension.
+      </p>
+      <pre>
+npm run configure:google -- --web-client-id YOUR_WEB_CLIENT_ID.apps.googleusercontent.com</pre>
+      <p>
+        Reload the original Edge installation at <strong>edge://extensions</strong>, or reload the
+        Firefox temporary add-on at <strong>about:debugging</strong>. Firefox needs a Mozilla-signed
+        build for permanent installation. Local features remain available without Google sign-in.
+        The Drive API needs no billing account for this setup; do not enable paid Cloud Translation
+        or paid storage upgrades if you want to avoid charges.
+      </p>
+      <h2>Chrome</h2>
+      <ol>
+        <li>
+          Keep your current Margin installation. Copy its extension ID from Settings or
+          <strong>chrome://extensions</strong>. Uninstalling can remove local data.
+        </li>
+        <li>
+          Open
+          <a
+            href="https://console.cloud.google.com/apis/library/drive.googleapis.com"
+            target="_blank"
+            rel="noreferrer"
+            >Google Cloud Console</a
+          >, create/select a project, and enable the Google Drive API.
+        </li>
+        <li>
+          Configure Google Auth Platform branding and audience. If the app is in testing, add your
+          Google account as a test user. Add only the
+          <code>https://www.googleapis.com/auth/drive.appdata</code> scope.
+        </li>
+        <li>
+          Create an OAuth client with application type <strong>Chrome Extension</strong>. Enter the
+          exact extension ID as the application/item ID. Copy the client ID; no client secret is
+          used.
+        </li>
+        <li>
+          In the project folder, run:
+          <pre>
+npm run configure:google -- --client-id YOUR_CLIENT_ID.apps.googleusercontent.com</pre>
+          This saves a local build setting and rebuilds Margin. For a release build, the maintainer
+          can instead set the <code>MARGIN_GOOGLE_CLIENT_ID</code> environment variable.
+        </li>
+        <li>
+          Reload the same extension in <strong>chrome://extensions</strong>. Refresh the library,
+          open Settings & backups, read the sync consent, and click
+          <strong>Continue with Google</strong>.
+        </li>
+      </ol>
+      <h2>On your other devices</h2>
+      <p>
+        Use the same configured app/project and sign in to the same Google account. Published
+        installations have a consistent extension ID. Unpacked copies on different paths can have
+        different IDs; follow the stable-ID instructions in the project’s GOOGLE-DRIVE.md before
+        configuring multiple development installations.
+      </p>
+      <h2>What is stored</h2>
+      <p>
+        Margin stores your saved research, settings, PDFs, and audio in its hidden application-data
+        folder in your Google Drive. It requests access only to that folder. You will not see these
+        files in My Drive. Your Drive storage quota applies. The local copy works offline. Margin
+        does not add password encryption to sync files.
+      </p>
+      <p>
+        Changes and deletions synchronize. Conflicting edits keep a recovery copy, downloadable in
+        Settings as JSON with the record type, source, and saved value. Pausing stops automatic
+        sync. Disconnecting keeps both your local library and the existing Drive copy; it clears
+        Margin’s cached sign-in tokens. Manage Google access and delete app data in your
+        <a href="https://drive.google.com/drive/u/0/settings" target="_blank" rel="noreferrer"
+          >Google Drive settings</a
+        >.
+      </p>
+      <p>
+        <a
+          href="https://developer.chrome.com/docs/extensions/how-to/integrate/oauth"
+          target="_blank"
+          rel="noreferrer"
+          >Chrome OAuth setup</a
+        >
+        ·
+        <a
+          href="https://developers.google.com/workspace/drive/api/guides/appdata"
+          target="_blank"
+          rel="noreferrer"
+          >Google Drive application data</a
+        >
+      </p>
+    </main>
+  </body>
+</html>

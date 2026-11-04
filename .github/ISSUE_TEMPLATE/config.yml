@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation and troubleshooting
+    url: https://github.com/saeidshirazi/margin-web-highlighter/blob/main/docs/INSTALL.md
+    about: Start here if you need help installing Margin.
+  - name: Report a security vulnerability privately
+    url: https://github.com/saeidshirazi/margin-web-highlighter/security/advisories/new
+    about: Do not post vulnerability details or credentials in a public issue.

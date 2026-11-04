@@ -1,0 +1,10 @@
+dist
+dist-edge
+dist-firefox
+node_modules
+release
+work
+test-results
+package-lock.json
+
+dist-brave/

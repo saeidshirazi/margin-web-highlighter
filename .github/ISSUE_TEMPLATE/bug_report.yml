@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a reproducible problem without sharing private research.
+title: '[Bug]: '
+body:
+  - type: markdown
+    attributes:
+      value: 'For vulnerabilities, use Security → Report a vulnerability. Do not include credentials, private notes, or research backups here.'
+  - type: input
+    id: versions
+    attributes:
+      label: Browser, OS, and Margin version
+      placeholder: 'Brave 1.x / Windows 11 / Margin 0.6.0'
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use a public URL or a small synthetic example if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Include the exact error text and a screenshot if useful. Remove private details.
+    validations:
+      required: true

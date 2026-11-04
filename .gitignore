@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-edge/
+dist-brave/
+dist-firefox/
+release/
+test-results/
+work/
+*.log
+google-oauth.local.json

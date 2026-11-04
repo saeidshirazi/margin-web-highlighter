@@ -1,0 +1,41 @@
+name: Validate extension
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MARGIN_LIVE_TRANSLATION_TEST: '0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run check:docs
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium firefox
+      - run: npm run test:e2e
+      - run: npm run test:native
+      - run: npm run test:drive
+      - run: npm run build:edge && npm run build:firefox
+        env:
+          MARGIN_GOOGLE_WEB_CLIENT_ID: 123-ci-fixture.apps.googleusercontent.com
+      - run: npm run lint:firefox
+      - run: npm run test:firefox
+      - run: npm run test:firefox:drive
+        env:
+          MARGIN_CROSS_CHROMIUM: chromium
+      - run: npm run package:public
+      - run: npm run verify:release
