@@ -479,7 +479,7 @@ try {
       ),
     )
     .toBe(true);
-  assert.ok(await library.evaluate(() => globalThis.__speechAborted));
+  await expect.poll(() => library.evaluate(() => globalThis.__speechAborted)).toBe(true);
   const voicePage = (await snap()).pages.find((p) => p.title === 'Voice research note');
   if (!(await library.locator('.drawer').isVisible()))
     await library.locator(`[data-page="${voicePage.id}"]`).click();
