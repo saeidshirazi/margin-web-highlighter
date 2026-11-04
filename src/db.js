@@ -409,7 +409,9 @@ export async function organizeCollection({ from, to, remove = false }) {
       );
     const undo = { pages: [], presets: [] };
     for (const page of affected) {
-      const next = remove ? '' : to + collectionPath(page.collection).slice(from.length);
+      const next = remove
+        ? ''
+        : collectionTarget(to + collectionPath(page.collection).slice(from.length), false);
       undo.pages.push({ id: page.id, before: page.collection || '', after: next });
       await request(
         s.pages.put({
@@ -423,7 +425,7 @@ export async function organizeCollection({ from, to, remove = false }) {
       const presets = normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []);
       for (const preset of presets)
         if (preset.scope === 'collection' && inCollection(preset.collection, from)) {
-          const next = to + preset.collection.slice(from.length);
+          const next = collectionTarget(to + preset.collection.slice(from.length), false);
           undo.presets.push({ id: preset.id, before: preset.collection, after: next });
           preset.collection = next;
         }

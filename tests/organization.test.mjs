@@ -96,6 +96,16 @@ test('collection collisions, cycles and stale bulk moves reject atomically', asy
     /already exists/,
   );
   await assert.rejects(() => db.organizeCollection({ from: 'Work', to: 'Work/Child' }), /outside/);
+  await assert.rejects(
+    () =>
+      db.organizeCollection({ from: 'Work', to: 'One/Two/Three/Four/Five/Six/Seven/Eight/Nine' }),
+    /collection path/,
+  );
+  assert.equal(
+    (await db.snapshot()).pages.find((item) => item.url === 'https://example.test/organize/b')
+      .collection,
+    'Work/Reading/Books',
+  );
   const before = (await db.get('pages', page.id)).collection;
   await assert.rejects(
     () => db.movePagesToCollection({ ids: [page.id, 'deleted-id'], collection: 'Other' }),
