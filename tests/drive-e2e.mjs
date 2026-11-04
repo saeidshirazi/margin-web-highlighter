@@ -178,6 +178,24 @@ try {
     Buffer.from(pdfBytes).toString('base64'),
   );
   assert.equal(restored.settings.translationTarget, 'fr');
+  await a.api('update-experience', { guideHidden: true, searched: true, intervalDays: 30 });
+  const currentHighlight = (await a.api('snapshot')).highlights.find((item) => item.id === h.id);
+  const replacement = 'A repaired research quote';
+  await a.api('repair-highlight', {
+    id: h.id,
+    text: replacement,
+    anchor: { exact: replacement, start: 0, end: replacement.length, prefix: '', suffix: '' },
+    expectedUpdatedAt: currentHighlight.updatedAt,
+  });
+  await a.sync();
+  await b.sync();
+  const repairedBackup = await b.api('backup');
+  assert.equal(repairedBackup.highlights[0].text, replacement);
+  assert.equal(repairedBackup.highlights[0].originalText, h.text);
+  assert.equal(repairedBackup.cards[0].highlightId, repairedBackup.highlights[0].id);
+  assert.equal((await b.api('device-experience')).guideHidden, false);
+  assert.equal((await b.api('device-experience')).intervalDays, 7);
+  assert.equal((await b.api('device-experience')).lastBackupAt, 0);
   await a.api('drive-pause');
   await b.api('drive-pause');
   await a.api('save-page', { url: page.url, note: 'Edited on A' });
@@ -234,6 +252,7 @@ try {
           ...(browserTarget === 'chrome' ? ['unconfigured setup'] : []),
           'connect consent',
           'all record types',
+          'repair history and linked records sync without device-only guide/reminder state',
           'cross-device recovery',
           'concurrent edits',
           'recovery copies',

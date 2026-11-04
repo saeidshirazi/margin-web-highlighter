@@ -14,6 +14,7 @@ export function createAnnotator({
   onColor,
   extraAnchor,
   onCapture,
+  repair,
 }) {
   const doc = root.ownerDocument;
   const win = doc.defaultView;
@@ -23,7 +24,9 @@ export function createAnnotator({
   doc.documentElement.append(host);
   const shadow = host.attachShadow({ mode: 'closed' });
   const style = doc.createElement('style');
-  style.textContent = css;
+  style.textContent =
+    css +
+    '.editor{max-height:calc(100vh - 20px);overflow:auto}.repair{bottom:16px;left:16px;width:360px}.repair .quote{max-height:55px}';
   shadow.append(style);
   const layer = doc.createElement('div');
   shadow.append(layer);
@@ -38,6 +41,65 @@ export function createAnnotator({
     toastTimer,
     lastDeleted,
     refreshTimer;
+  let repairing;
+  function cancelRepair() {
+    repairing = null;
+    delete host.dataset.marginMode;
+    pending = null;
+    shadow.querySelector('.repair')?.remove();
+    close();
+  }
+  async function startRepair(id) {
+    if (!repair) throw new Error('Open the source from your library to repair this highlight.');
+    await refresh();
+    const item = data.highlights.find((h) => h.id === id);
+    if (!item) throw new Error('This highlight is no longer available on this source.');
+    if (item.anchor.page)
+      throw new Error('Location repair currently supports websites and saved articles.');
+    cancelRepair();
+    if (quick) toggleQuick(false);
+    repairing = item;
+    const bar = doc.createElement('div');
+    bar.className = 'box repair';
+    bar.setAttribute('role', 'status');
+    bar.innerHTML = `<strong>Repair highlight location</strong><div class="quote">${esc(item.text)}</div><p class="muted">Select the replacement passage, then review and save. Your notes and study cards stay attached.</p><button data-cancel-repair>Cancel repair · Esc</button>`;
+    bar.querySelector('button').onclick = cancelRepair;
+    layer.append(bar);
+    host.dataset.marginMode = 'repair';
+    return true;
+  }
+  function repairPreview(range) {
+    close();
+    const item = repairing,
+      replacement = pending;
+    box = doc.createElement('div');
+    box.className = 'box editor';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-label', 'Confirm replacement passage');
+    box.innerHTML = `<strong>Use this replacement passage?</strong><div class="muted">Previous quote</div><div class="quote">${esc(item.text)}</div><div class="muted">Replacement</div><div class="quote">${esc(replacement.text)}</div><p class="muted">Existing notes, colors, tags, flashcards and audio are kept. The original quotation remains in your library.</p><div class="row"><button data-save-repair>Save new location</button><button data-choose-again>Choose again</button><button data-cancel-repair>Cancel repair</button></div><p class="muted" role="alert" data-repair-error></p>`;
+    const modal = box;
+    modal.querySelector('[data-choose-again]').onclick = close;
+    modal.querySelector('[data-cancel-repair]').onclick = cancelRepair;
+    modal.querySelector('[data-save-repair]').onclick = async () => {
+      const button = modal.querySelector('[data-save-repair]');
+      button.disabled = true;
+      try {
+        await repair(item.id, { ...replacement, expectedUpdatedAt: item.updatedAt });
+        cancelRepair();
+        win.getSelection()?.removeAllRanges();
+        await refresh();
+        toast('Highlight location repaired. Your notes and study cards were kept.');
+      } catch (e) {
+        modal.querySelector('[data-repair-error]').textContent = e.message;
+        button.disabled = false;
+      }
+    };
+    modal.onmousedown = (e) => e.preventDefault();
+    layer.append(modal);
+    const rect = range.getBoundingClientRect();
+    position(modal, rect.left, rect.bottom);
+    modal.querySelector('[data-save-repair]').focus({ preventScroll: true });
+  }
   const error = (e) => toast(e.message || String(e));
   function toast(text, undo = false) {
     shadow.querySelector('.toast')?.remove();
@@ -104,7 +166,9 @@ export function createAnnotator({
     if (disposed || version !== generation) return next;
     data = next;
     painted?.dispose();
-    painted = paintHighlights(root, data.highlights, (h, e) => editor(h, e.clientX, e.clientY));
+    painted = paintHighlights(root, data.highlights, (h, e) => {
+      if (!repairing) editor(h, e.clientX, e.clientY);
+    });
     return data;
   }
   async function highlight(c = data.settings.color, edit = false) {
@@ -267,11 +331,17 @@ export function createAnnotator({
     setTimeout(() => {
       const range = selection();
       if (!range) return;
-      if (quick) highlight();
+      if (repairing) repairPreview(range);
+      else if (quick) highlight();
       else if (data.settings.selectionToolbar) selectionToolbar(range);
     }, 15);
   };
   const keydown = (e) => {
+    if (e.key === 'Escape' && repairing) {
+      cancelRepair();
+      e.preventDefault();
+      return;
+    }
     if (
       e.composedPath().includes(host) ||
       e.target.closest?.('input,textarea,[contenteditable=true]')
@@ -302,7 +372,8 @@ export function createAnnotator({
       return;
     if (e.key === 'Shift') {
       const range = selection();
-      if (range && data.settings.selectionToolbar) selectionToolbar(range);
+      if (range && repairing) repairPreview(range);
+      else if (range && data.settings.selectionToolbar) selectionToolbar(range);
     }
   };
   doc.addEventListener('keyup', keyup);
@@ -327,6 +398,7 @@ export function createAnnotator({
   return {
     refresh,
     toast,
+    startRepair,
     async action(action) {
       if (action === 'highlight') {
         if (selection()) await highlight();
@@ -346,7 +418,15 @@ export function createAnnotator({
           const r = range.getBoundingClientRect();
           editor(h, r.left, r.bottom);
         }, 300);
-      } else toast('This quote could not be found. It is still saved in your library.');
+      } else {
+        toast('This quote could not be found. It is still saved in your library.');
+        if (h && repair && !h.anchor.page) {
+          const button = doc.createElement('button');
+          button.textContent = 'Repair location';
+          button.onclick = () => startRepair(id).catch(error);
+          shadow.querySelector('.toast')?.append(' ', button);
+        }
+      }
     },
     dispose() {
       disposed = true;

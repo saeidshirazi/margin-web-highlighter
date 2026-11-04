@@ -48,3 +48,9 @@ Current scale tradeoffs: library search loads page/highlight metadata and articl
 ## Browser targets in 0.6
 
 `src/platform.js` selects native Firefox promise APIs or Chromium APIs. `scripts/browser-manifest.mjs` generates Chrome/Edge service-worker manifests and Firefox event-background/sidebar/optional-data-consent declarations. `src/google-auth.js` keeps Chrome native authorization while Edge/Firefox use state-validated browser web OAuth, exact callbacks and session-only token caching. Stable public IDs are in `config/browser-ids.json`; local OAuth registration is excluded from source archives. Production builds contain no test interception. Drive tests inject a bootstrap only into a separate temporary fixture XPI. See CROSS-BROWSER.md for validation and remaining release gates.
+
+## Device experience in 0.7
+
+`experience.js` models reminder timing and tutorial completion; `experience-ui.js` renders inline guidance and controls. A separate `device-experience` settings record is read/written through the serialized background queue and never exposed in research snapshots/backups or Drive projections. Backup exports capture a revision before an atomic IndexedDB snapshot, then acknowledge only that revision after dispatching the download. Large binary attachments stay outside runtime messages. Reminder bookkeeping failures do not fail an otherwise successful research save/export.
+
+`repair-highlight` is source-scoped for content senders and checks the stored highlight’s update timestamp. It updates the existing record atomically while preserving linked IDs, the first quotation and up to ten previous anchor locations. The annotator provides a cancelable selection mode and confirmation preview; the reader supports the same flow. `practice.js` uses the real annotator on bundled content without creating research until the user highlights.

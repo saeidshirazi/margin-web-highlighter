@@ -13,6 +13,7 @@ const mutations = new Set([
   'save-page',
   'add-highlight',
   'update-highlight',
+  'repair-highlight',
   'delete-highlight',
   'restore-highlight',
   'delete-page',
@@ -36,6 +37,7 @@ async function handle(type, p, sender) {
       'save-page',
       'add-highlight',
       'update-highlight',
+      'repair-highlight',
       'delete-highlight',
       'restore-highlight',
       'open-library',
@@ -68,10 +70,21 @@ async function handle(type, p, sender) {
         throw new Error('Highlight belongs to another page');
     }
     if (
-      ['add-highlight', 'update-highlight', 'delete-highlight', 'restore-highlight'].includes(type)
+      [
+        'add-highlight',
+        'update-highlight',
+        'repair-highlight',
+        'delete-highlight',
+        'restore-highlight',
+      ].includes(type)
     ) {
       const current = await db.pageData(url);
-      const pageId = p.pageId || p.item?.pageId || (await db.get('highlights', p.id))?.pageId;
+      const pageId =
+        type === 'add-highlight'
+          ? p.pageId
+          : type === 'restore-highlight'
+            ? p.item?.pageId
+            : (await db.get('highlights', p.id))?.pageId;
       if (!current.page || current.page.id !== pageId)
         throw new Error('Highlight belongs to another page');
     }
@@ -110,6 +123,22 @@ async function handle(type, p, sender) {
       return db.addHighlight(p);
     case 'update-highlight':
       return db.updateHighlight(p.id, p.patch);
+    case 'repair-highlight':
+      return db.repairHighlight(p.id, p);
+    case 'device-experience':
+      return db.deviceExperience();
+    case 'update-experience': {
+      const result = await db.deviceExperience(p);
+      if (!p.searched) await extension.storage.local.set({ deviceRevision: crypto.randomUUID() });
+      return result;
+    }
+    case 'backup-revision':
+      return (await db.deviceExperience()).changes;
+    case 'backup-downloaded': {
+      const result = await db.recordBackupDownload(p.revision);
+      await extension.storage.local.set({ deviceRevision: crypto.randomUUID() });
+      return result;
+    }
     case 'delete-highlight':
       return db.removeHighlight(p.id);
     case 'restore-highlight':
@@ -180,7 +209,11 @@ extension.runtime.onMessage.addListener((message, sender, reply) => {
   if (!message?.type) return false;
   const run = async () => {
     const data = await handle(message.type, message.payload || {}, sender);
-    if (mutations.has(message.type)) await changed();
+    if (mutations.has(message.type)) {
+      // Reminder bookkeeping must not turn a successful research save into an error.
+      if (message.type !== 'settings') await db.recordResearchChange().catch(() => {});
+      await changed();
+    }
     return data;
   };
   // Serial execution also prevents cross-tab read/modify/write races.

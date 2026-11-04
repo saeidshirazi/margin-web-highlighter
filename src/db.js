@@ -9,6 +9,7 @@ import {
   VERSION,
 } from './core.js';
 import { languageCode } from './languages.js';
+import { EXPERIENCE_KEY, experienceState } from './experience.js';
 const stores = ['pages', 'highlights', 'cards', 'settings', 'assets'];
 const anchorKey = (a) =>
   JSON.stringify([
@@ -183,7 +184,7 @@ export async function updateHighlight(id, patch) {
   return transaction(['highlights', 'pages'], 'readwrite', async (s) => {
     const old = await request(s.highlights.get(id));
     if (!old) throw new Error('Highlight no longer exists');
-    const next = { ...old, updatedAt: Date.now() };
+    const next = { ...old, updatedAt: Math.max(Date.now(), old.updatedAt + 1) };
     if (patch.color !== undefined) next.color = color(patch.color);
     if (patch.note !== undefined) next.note = String(patch.note);
     if (patch.tags !== undefined) next.tags = cleanTags(patch.tags);
@@ -191,6 +192,99 @@ export async function updateHighlight(id, patch) {
     const page = await request(s.pages.get(old.pageId));
     if (page) await request(s.pages.put({ ...page, updatedAt: Date.now() }));
     return next;
+  });
+}
+export async function repairHighlight(id, { text, anchor, expectedUpdatedAt }) {
+  if (
+    typeof text !== 'string' ||
+    !text.trim() ||
+    text.length > 100000 ||
+    !anchor ||
+    anchor.exact !== text ||
+    !Number.isInteger(anchor.start) ||
+    !Number.isInteger(anchor.end) ||
+    anchor.start < 0 ||
+    anchor.end <= anchor.start ||
+    anchor.end - anchor.start !== text.length ||
+    typeof anchor.prefix !== 'string' ||
+    typeof anchor.suffix !== 'string'
+  )
+    throw new Error('Select a replacement passage before saving its location.');
+  return transaction(['highlights', 'pages'], 'readwrite', async (s) => {
+    const old = await request(s.highlights.get(id));
+    if (!old) throw new Error('This highlight was deleted. Your selection has not been saved.');
+    if (old.updatedAt !== expectedUpdatedAt)
+      throw new Error(
+        'This highlight changed in another tab or device. Cancel and start repair again.',
+      );
+    const page = await request(s.pages.get(old.pageId));
+    if (!page) throw new Error('This source was deleted.');
+    if (page.type === 'pdf')
+      throw new Error('Location repair currently supports website and saved-article highlights.');
+    const now = Math.max(Date.now(), old.updatedAt + 1);
+    const next = {
+      ...old,
+      text,
+      anchor: {
+        exact: text,
+        start: anchor.start,
+        end: anchor.end,
+        prefix: anchor.prefix.slice(-256),
+        suffix: anchor.suffix.slice(0, 256),
+      },
+      originalText: old.originalText || old.text,
+      repairHistory: [
+        ...(old.repairHistory || []),
+        { text: old.text, anchor: old.anchor, repairedAt: now },
+      ].slice(-10),
+      updatedAt: now,
+    };
+    await request(s.highlights.put(next));
+    await request(s.pages.put({ ...page, updatedAt: now }));
+    return next;
+  });
+}
+export async function deviceExperience(patch) {
+  return transaction(['settings', 'pages'], 'readwrite', async (s) => {
+    const stored = await request(s.settings.get(EXPERIENCE_KEY));
+    const state = experienceState(stored?.value);
+    // Existing libraries upgrading from older releases need an initial reminder
+    // baseline even if no new editing takes place after the update.
+    if (!stored && (await request(s.pages.count())) > 0) {
+      state.changes = 1;
+      state.firstChangeAt = Date.now();
+      await request(s.settings.put({ id: EXPERIENCE_KEY, value: state }));
+    }
+    if (patch) {
+      // A whitelist prevents imported preferences or arbitrary UI patches from changing counters.
+      for (const key of ['enabled', 'intervalDays', 'changeThreshold', 'guideHidden', 'searched'])
+        if (patch[key] !== undefined) state[key] = patch[key];
+      if (patch.snooze) state.snoozedUntil = Date.now() + 7 * 86400000;
+      const normalized = experienceState(state);
+      await request(s.settings.put({ id: EXPERIENCE_KEY, value: normalized }));
+      return normalized;
+    }
+    return state;
+  });
+}
+export async function recordResearchChange() {
+  return transaction(['settings'], 'readwrite', async (s) => {
+    const state = experienceState((await request(s.settings.get(EXPERIENCE_KEY)))?.value);
+    state.changes++;
+    state.firstChangeAt ||= Date.now();
+    await request(s.settings.put({ id: EXPERIENCE_KEY, value: state }));
+  });
+}
+export async function recordBackupDownload(revision) {
+  return transaction(['settings'], 'readwrite', async (s) => {
+    const state = experienceState((await request(s.settings.get(EXPERIENCE_KEY)))?.value);
+    if (!Number.isInteger(revision) || revision < 0 || revision > state.changes)
+      throw new Error('Invalid backup revision. Download a new backup.');
+    state.backedUpChanges = Math.max(state.backedUpChanges, revision);
+    state.lastBackupAt = Date.now();
+    state.snoozedUntil = 0;
+    await request(s.settings.put({ id: EXPERIENCE_KEY, value: state }));
+    return state;
   });
 }
 export async function removePage(id) {
@@ -395,7 +489,7 @@ export async function appendNote({ pageId, text, highlightId = '' }) {
     if (!target || (highlightId && target.pageId !== pageId))
       throw new Error('This highlight was deleted.');
     target.note = (target.note ? target.note + '\n\n' : '') + String(text);
-    target.updatedAt = Date.now();
+    target.updatedAt = Math.max(Date.now(), target.updatedAt + 1);
     if (highlightId) await request(s.pages.put({ ...page, updatedAt: target.updatedAt }));
     if (!highlightId && page.type === 'note') target.text = target.note;
     await request(s[highlightId ? 'highlights' : 'pages'].put(target));

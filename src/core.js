@@ -203,6 +203,23 @@ export function validateBackup(data) {
     if (typeof h.anchor.exact !== 'string' || !h.anchor.exact)
       throw new Error('Invalid quote anchor');
     if (
+      (h.originalText !== undefined &&
+        (typeof h.originalText !== 'string' || h.originalText.length > 100000)) ||
+      (h.repairHistory !== undefined &&
+        (!Array.isArray(h.repairHistory) ||
+          h.repairHistory.length > 10 ||
+          h.repairHistory.some(
+            (entry) =>
+              !entry ||
+              typeof entry.text !== 'string' ||
+              entry.text.length > 100000 ||
+              !entry.anchor ||
+              typeof entry.anchor.exact !== 'string' ||
+              !Number.isFinite(entry.repairedAt),
+          )))
+    )
+      throw new Error('Invalid highlight repair history');
+    if (
       h.anchor.quads !== undefined &&
       (!Array.isArray(h.anchor.quads) ||
         h.anchor.quads.some(

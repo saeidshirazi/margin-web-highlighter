@@ -144,6 +144,7 @@ async function init() {
     },
     create: (input) => api('add-highlight', { ...input, pageId: id }),
     update: (id, patch) => api('update-highlight', { id, patch }),
+    repair: (id, input) => api('repair-highlight', { id, ...input }),
     remove: (id) => api('delete-highlight', { id }),
     restore: (item) => api('restore-highlight', { item }),
     onColor: (color) => api('settings', { color }),
@@ -153,6 +154,8 @@ async function init() {
   root.querySelector('#quick').onclick = () => controller.action('quick');
   const highlight = new URL(location.href).searchParams.get('highlight');
   if (highlight) setTimeout(() => controller.focus(highlight), 500);
+  const repair = new URL(location.href).searchParams.get('repair');
+  if (repair) controller.startRepair(repair).catch((e) => toast(e.message));
   extension.storage.onChanged.addListener((c) => {
     if (c.revision) controller.refresh().catch(() => {});
   });

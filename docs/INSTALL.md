@@ -2,11 +2,11 @@
 
 Choose your browser below. **You do not need Node.js, a terminal, or an account.**
 
-Download a browser-specific file from [the latest release](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest). Use the assets named `margin-0.6.0-…`, rather than GitHub’s automatic “Source code” downloads. Those source downloads require building first.
+Download a browser-specific file from [the latest release](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest). Use the assets named `margin-0.7.0-…`, rather than GitHub’s automatic “Source code” downloads. Those source downloads require building first.
 
 ## Google Chrome
 
-1. Download **margin-0.6.0-chrome.zip** and extract it to a folder you will keep, such as `Documents/Margin/Chrome`.
+1. Download **margin-0.7.0-chrome.zip** and extract it to a folder you will keep, such as `Documents/Margin/Chrome`.
 2. In Chrome’s address bar, type `chrome://extensions` and press Enter.
 3. Turn on **Developer mode** at the top right.
 4. Click **Load unpacked** and select the extracted folder containing `manifest.json`. Select the folder, not that file.
@@ -16,7 +16,7 @@ Click **Margin → Open your library**. Continue with [your first highlight](GET
 
 ## Microsoft Edge
 
-1. Download **margin-0.6.0-edge.zip** and extract it to a permanent folder, such as `Documents/Margin/Edge`.
+1. Download **margin-0.7.0-edge.zip** and extract it to a permanent folder, such as `Documents/Margin/Edge`.
 2. In Edge, open `edge://extensions`.
 3. Turn on **Developer mode**. Its position may vary with the window size.
 4. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
@@ -26,7 +26,7 @@ Click **Margin → Open your library**. Continue with [your first highlight](GET
 
 ## Brave
 
-1. Download **margin-0.6.0-brave.zip** and extract it to a permanent folder, such as `Documents/Margin/Brave`.
+1. Download **margin-0.7.0-brave.zip** and extract it to a permanent folder, such as `Documents/Margin/Brave`.
 2. In Brave, open `brave://extensions`.
 3. Turn on **Developer mode** at the top right.
 4. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
@@ -38,7 +38,7 @@ On Windows, if the folder picker is confusing: click its address bar, paste the 
 
 **This release is unsigned and temporarily installed. Firefox removes it when you close the browser.** Export a full JSON backup before ending your test session; do not rely on temporary-install storage surviving removal/reinstallation.
 
-1. Download **margin-0.6.0-firefox-unsigned.xpi**. Keep it as an XPI; do not rename it to a ZIP.
+1. Download **margin-0.7.0-firefox-unsigned.xpi**. Keep it as an XPI; do not rename it to a ZIP.
 2. In Firefox, open `about:debugging#/runtime/this-firefox`.
 3. Click **Load Temporary Add-on…**.
 4. Select the downloaded XPI. If your OS/file picker does not offer it, extract a copy and select its `manifest.json` instead.

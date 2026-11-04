@@ -1,8 +1,14 @@
 # Margin privacy policy
 
-Effective date: November 4, 2026. Applies to version 0.6.0.
+Effective date: November 4, 2026. Applies to version 0.7.0.
 
 Chrome, Edge, Brave, and Firefox store research in their own extension databases. Chrome uses its native Google token service. Edge, Brave, and Firefox use browser-managed web OAuth with a verified random state and exact callback; access tokens are cached only in extension session storage until expiry. No client secret is included. Firefox requests optional website-content, browsing-activity, and identifying-information transmission consent for Drive/in-app Google translation; voice recordings fall within identifying information. No optional transmission is required for local research. See [CROSS-BROWSER.md](CROSS-BROWSER.md) for API differences and installation.
+
+## Reminders, first-use guidance, and highlight repair
+
+Backup reminder preferences, local change counters, last full-backup download time, snooze date and guide progress are stored in a separate device-only settings record. They are excluded from research backups and Google Drive sync. The browser can report that a download was requested, not that you kept the resulting file. The practice page is bundled locally and saves an ordinary practice source only after an explicit highlight action. No telemetry or notification permission is added.
+
+Repair replaces the location and current quotation of an existing highlight after confirmation. Its notes, tags, cards and audio remain linked. The first quotation and up to 10 previous locations are retained in its research record, full backups and configured Drive sync. Those historical quotations may include text no longer visible on the original page. Deleting a highlight removes its local repair history; existing backups, sync replicas and recovery copies follow their usual retention/deletion rules.
 
 ## Optional Google Drive sync
 

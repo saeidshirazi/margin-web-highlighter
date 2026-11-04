@@ -51,3 +51,30 @@ Choose **Study** beside a quote to make a flashcard. Review it from **Flashcards
 When you want to move your research, choose **Export**. [Notion, Markdown, AI-agent and backup tutorials →](EXPORTS.md)
 
 Before closing a temporary Firefox session, moving devices, updating, or removing the extension, make a **Full JSON backup**. It includes your complete research plus PDF/audio files.
+
+## New in 0.7
+
+### First-use checklist
+
+Your library offers four small steps: make a highlight, add a note, search for it, and download a full backup. Choose **Try the practice page** for an offline introduction using the real highlighter. Practice research is saved only when you highlight; delete the practice source later if you like. **Hide guide** keeps it out of the way. Reopen it from **Settings & backups → Show getting-started guide**. Progress stays on this device.
+
+### Repair a missing or moved highlight
+
+1. Open the source in your library and choose **Repair location** beside the quote.
+2. Choose the original website or its saved offline article.
+3. Select the replacement passage. Review the previous and replacement quotations in the confirmation panel.
+4. Choose **Save new location**, **Choose again**, or **Cancel repair**. Escape also cancels.
+
+![Repair preview showing the previous and replacement quotations](images/repair.png)
+
+Repair updates the same highlight instead of creating a duplicate. Notes, tags, color, flashcards and audio stay attached. **Original quote before repair** in the library preserves the first quotation, and the last 10 replaced locations are retained in full backups and optional sync. A highlight edited elsewhere must be reopened before repairing, preventing accidental overwrites. If a live quote changes, an older offline copy may not contain it; recapture the article if needed. PDF location repair is not included yet.
+
+### Keep a recent backup
+
+A quiet reminder appears in the library after **7 days or 50 research changes on this device**, provided there are unbacked changes. **Back up now** opens the full JSON export; an optional password encrypts it. **Remind me in 7 days** snoozes the prompt.
+
+![Quiet backup reminder in the library](images/backup-reminder.png)
+
+In Settings, choose 7/14/30 days or 50/100/250 changes, disable reminders, and see the last full backup download request. Markdown/Notion/agent exports do not count as full backups. Changes made while a backup is being prepared remain pending. Reminder counters and tutorial progress never travel in research backups or Drive sync.
+
+The browser cannot confirm that you kept the downloaded file or accepted its save prompt. Check your downloads before relying on it. Imported research, deletion markers and independent exported files follow the existing backup/sync rules. No new notifications, account requirements or permissions were added.

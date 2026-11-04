@@ -1,6 +1,14 @@
-# Features in Margin 0.6.0
+# Features in Margin 0.7.0
 
 [Install](docs/INSTALL.md) · [Getting started](docs/GETTING-STARTED.md) · [Browser compatibility and tests](CROSS-BROWSER.md)
+
+## New in 0.7
+
+- Local first-use checklist, dismiss/replay controls, and an offline practice page using real saved highlights.
+- Quiet backup reminders after time or change thresholds, last-download status, seven-day snooze, configurable intervals and opt-out. Metadata is device-only and excluded from backups/sync.
+- Website/saved-article location repair with old/new preview, cancellation, concurrent-edit protection, preserved original quote, and retention of linked notes/cards/audio. PDF repair is not included.
+
+[Step-by-step tutorials](docs/GETTING-STARTED.md#new-in-07).
 
 ## Capture and organize
 

@@ -40,6 +40,7 @@ const entries = [
   'pdf',
   'print',
   'capture',
+  'practice',
 ];
 await Promise.all(
   entries.map((name) =>

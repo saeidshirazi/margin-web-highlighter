@@ -79,8 +79,26 @@ async function device() {
     const status = await api('drive-status');
     assert.equal(status.phase, 'ready', JSON.stringify(status));
   };
+  const click = (selector) =>
+    driver.wait(
+      async () => {
+        try {
+          const item = await driver.findElement(By.css(selector));
+          if (!(await item.isDisplayed()) || !(await item.isEnabled())) return false;
+          await item.click();
+          return true;
+        } catch (error) {
+          if (['StaleElementReferenceError', 'NoSuchElementError'].includes(error.name))
+            return false;
+          throw error;
+        }
+      },
+      15000,
+      'Click ' + selector,
+      100,
+    );
   const connect = async () => {
-    await driver.findElement(By.css('[data-drive-connect]')).click();
+    await click('[data-drive-connect]');
     await driver.wait(async () => (await api('drive-status')).connected, 20000);
     await settled();
   };
@@ -88,7 +106,7 @@ async function device() {
     await api('drive-now');
     await settled();
   };
-  return { driver, api, connect, sync };
+  return { driver, api, connect, sync, click };
 }
 try {
   const a = await device();
@@ -122,6 +140,20 @@ try {
   assert.equal(backup.cards.length, 1);
   assert.equal(backup.assets[0].base64, 'YWJj');
   assert.equal(backup.settings.translationTarget, 'fa');
+  await a.api('update-experience', { guideHidden: true, searched: true, intervalDays: 30 });
+  const currentHighlight = (await a.api('snapshot')).highlights.find((item) => item.id === h.id);
+  const replacement = 'A repaired shared quote';
+  await a.api('repair-highlight', {
+    id: h.id,
+    text: replacement,
+    anchor: { exact: replacement, start: 0, end: replacement.length, prefix: '', suffix: '' },
+    expectedUpdatedAt: currentHighlight.updatedAt,
+  });
+  await a.sync();
+  await b.sync();
+  assert.equal((await b.api('backup')).highlights[0].originalText, 'A shared quote');
+  assert.equal((await b.api('device-experience')).guideHidden, false);
+  assert.equal((await b.api('device-experience')).intervalDays, 7);
   const edgeFolder = path.resolve('dist-edge');
   edgeContext = await chromium.launchPersistentContext('', {
     channel: process.env.MARGIN_CROSS_CHROMIUM || 'msedge',
@@ -150,6 +182,8 @@ try {
   await a.driver.wait(async () => !(await edgeApi('drive-status')).busy, 20000);
   assert.equal((await edgeApi('drive-status')).phase, 'ready');
   assert.equal((await edgeApi('backup')).pages[0].note, 'Original');
+  assert.equal((await edgeApi('backup')).highlights[0].text, replacement);
+  assert.equal((await edgeApi('backup')).highlights[0].originalText, 'A shared quote');
   await edgeApi('save-page', { url: page.url, note: 'Edited from Chromium' });
   await edgeApi('drive-now');
   await a.driver.wait(async () => !(await edgeApi('drive-status')).busy, 20000);
@@ -176,9 +210,9 @@ try {
   await a.driver.wait(async () => !(await a.api('drive-status')).busy, 20000);
   await a.driver.navigate().refresh();
   await a.driver.wait(until.elementLocated(By.css('[data-drive-toggle]')), 15000);
-  await a.driver.findElement(By.css('[data-drive-toggle]')).click();
+  await a.click('[data-drive-toggle]');
   await a.driver.wait(async () => (await a.api('drive-status')).enabled === false, 10000);
-  await a.driver.findElement(By.css('[data-drive-disconnect]')).click();
+  await a.click('[data-drive-disconnect]');
   await a.driver.wait(async () => !(await a.api('drive-status')).connected, 10000);
   await writeFile(
     path.join(results, 'report.json'),

@@ -9,7 +9,7 @@ body:
     id: versions
     attributes:
       label: Browser, OS, and Margin version
-      placeholder: 'Brave 1.x / Windows 11 / Margin 0.6.0'
+      placeholder: 'Brave 1.x / Windows 11 / Margin 0.7.0'
     validations:
       required: true
   - type: textarea

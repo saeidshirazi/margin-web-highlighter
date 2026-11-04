@@ -93,6 +93,7 @@ async function start() {
       return api('add-highlight', { ...input, pageId: page.id });
     },
     update: (id, patch) => api('update-highlight', { id, patch }),
+    repair: (id, input) => api('repair-highlight', { id, ...input }),
     remove: (id) => api('delete-highlight', { id }),
     restore: (item) => api('restore-highlight', { item }),
     onLibrary: async () => {
@@ -139,6 +140,11 @@ extension.runtime.onMessage.addListener((message, _sender, reply) => {
     if (message.action === 'focus') {
       controller?.focus(message.id);
       return true;
+    }
+    if (message.action === 'repair') {
+      if (!controller)
+        throw new Error('Reload this source and resume Margin before repairing a highlight.');
+      return controller.startRepair(message.id);
     }
     if (disabled) throw new Error('Margin is paused on this site. Resume it in the popup.');
     await controller?.action(message.action);

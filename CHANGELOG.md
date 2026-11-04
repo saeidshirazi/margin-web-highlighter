@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — November 4, 2026
+
+- Added quiet, configurable device-only backup reminders, last-download status, seven-day snooze, and reminder opt-out. Full JSON/encrypted downloads acknowledge a conservative revision so concurrent edits remain pending; failed download requests are not acknowledged.
+- Added highlight location repair on websites and saved articles, explicit old/new confirmation, keyboard cancellation, stale-edit rejection, original quotation/history retention, and preservation of linked notes/cards/audio. PDF repair is not included.
+- Added a dismissible/replayable first-use checklist and an offline practice page with real annotations. No account, permissions, telemetry, or storage schema changes.
+- Device experience metadata is excluded from backups and Drive replicas. Existing version-2 research backups remain compatible.
+- Added unit and native-browser coverage for reminders, failed exports, concurrency, practice/replay, repair cancellation and persistence.
+
 ## 0.6.0 — November 4, 2026
 
 First public source snapshot of the final Margin implementation.

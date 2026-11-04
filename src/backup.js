@@ -1,5 +1,5 @@
 import { extension } from './platform.js';
-import { download } from './api.js';
+import { api, download } from './api.js';
 import { toHTML, csv } from './core.js';
 import { backupSnapshot } from './db.js';
 import { researchMarkdown, researchBundle } from './transfer.js';
@@ -65,12 +65,16 @@ export async function decryptBackup(data, password) {
 export async function exportData(format, pages, highlights, password = '', options = {}) {
   const stamp = new Date().toISOString().slice(0, 10);
   if (format === 'json') {
+    // Capture a conservative counter before the atomic snapshot. Changes while
+    // encrypting/downloading remain pending, and large attachments avoid messaging limits.
+    const revision = await api('backup-revision');
     const data = await backupSnapshot();
     download(
       `margin-backup-${stamp}${password ? '.encrypted' : ''}.json`,
       JSON.stringify(password ? await encryptBackup(data, password) : data, null, 2),
       'application/json',
     );
+    await api('backup-downloaded', { revision }).catch(() => {});
   }
   if (format === 'md')
     download(

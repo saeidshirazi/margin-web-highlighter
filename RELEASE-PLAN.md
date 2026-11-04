@@ -1,11 +1,9 @@
 # Roadmap
 
-The current release’s implemented features are listed in [FEATURES.md](FEATURES.md). These are future improvements, not promises or shipped functionality.
+Version 0.7 includes backup reminders, highlight repair, and first-use guidance. The current release’s implemented features are listed in [FEATURES.md](FEATURES.md). These are future improvements, not promises or shipped functionality.
 
 - Mozilla signing for permanent Firefox installation.
 - Public Google OAuth release/consent setup for users who want one-click optional Drive sync.
-- Quiet backup reminders and clearer recovery workflows.
-- Reattach a moved quote while keeping its notes and study cards.
 - Richer collection management and saved export preferences.
 - Broader real-site and accessibility testing.
 

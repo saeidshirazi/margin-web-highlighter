@@ -1,4 +1,4 @@
-import { Builder, By, until } from 'selenium-webdriver';
+import { Builder, By, until, Key } from 'selenium-webdriver';
 import firefox from 'selenium-webdriver/firefox.js';
 import { firefox as playwrightFirefox } from '@playwright/test';
 import { zipSync, unzipSync, strFromU8 } from 'fflate';
@@ -183,6 +183,20 @@ try {
     browser.permissions.getAll().then((value) => done(value.data_collection || [])),
   );
   pass('MV3 installation, event background, native promise messages and empty library');
+  assert.match(await text('.onboarding-guide summary'), /0 of 4/);
+  const beforePractice = new Set(await driver.getAllWindowHandles());
+  await click('[data-practice]');
+  let practice;
+  await poll(async () => {
+    practice = (await driver.getAllWindowHandles()).find((handle) => !beforePractice.has(handle));
+    return !!practice;
+  });
+  await driver.switchTo().window(practice);
+  await element('#practice-article');
+  assert.ok((await text('#practice-article')).includes('A useful highlight'));
+  await driver.close();
+  await driver.switchTo().window(library);
+  pass('first-use checklist and bundled local practice page');
   await driver.switchTo().newWindow('tab');
   const source = await driver.getWindowHandle();
   await driver.get(url);
@@ -263,6 +277,30 @@ try {
   await click('[data-grade=true]');
   await poll(async () => (await api('snapshot')).cards[0].interval === 1, 'Study schedule');
   pass('flashcard answer reveal and spaced review');
+  await driver.get(base + 'library.html#page=' + page.id);
+  await driver.navigate().refresh();
+  await click(`[data-repair-highlight="${h.id}"]`);
+  await click('dialog[open] [type=submit]');
+  await driver.switchTo().window(source);
+  await element('div[data-margin-mode=repair]');
+  await select('#other');
+  await driver.sleep(100);
+  await screenshot('repair-preview.png');
+  await driver.actions().sendKeys(Key.ENTER).perform();
+  await driver.switchTo().window(library);
+  await poll(
+    async () =>
+      (await api('snapshot')).highlights.find((item) => item.id === h.id).text ===
+      'Voice notes and highlights belong together.',
+    'Firefox repaired quote',
+  );
+  const afterRepair = await api('snapshot');
+  assert.equal(afterRepair.highlights.find((item) => item.id === h.id).note, '**Firefox note**');
+  assert.equal(afterRepair.highlights.find((item) => item.id === h.id).originalText, h.text);
+  assert.equal(afterRepair.cards[0].highlightId, h.id);
+  pass(
+    'native Firefox repair preview and keyboard confirmation preserve original quote, Markdown note and study card',
+  );
 
   await click('[data-view=all]');
   await fill('#search', '');

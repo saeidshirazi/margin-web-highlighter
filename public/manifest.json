@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Margin — Local Web Highlighter",
   "short_name": "Margin",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "minimum_chrome_version": "150",
   "description": "Highlight, annotate and export your research. Local storage with optional Google Drive sync. No subscriptions or tracking.",
   "permissions": [

@@ -24,9 +24,11 @@ import { openTranslation } from './translation-ui.js';
 import { renderAudioNotes } from './audio-notes.js';
 import { openReadAloud } from './read-aloud.js';
 import { addDriveSettings } from './drive-ui.js';
+import { addExperience, addExperienceSettings, revealGuide } from './experience-ui.js';
 let releaseDetailAudio = () => {};
 const app = document.querySelector('#app');
 let state,
+  device,
   view = 'all',
   filters = {},
   selected = new Set(),
@@ -43,7 +45,7 @@ const action = (name, text, ico = '', cls = '') =>
   `<button type="button" data-action="${name}" class="${cls}">${ico ? icon(ico) : ''}${text}</button>`;
 async function refresh() {
   const resizeFocused = document.activeElement?.classList.contains('detail-resizer');
-  state = await api('snapshot');
+  [state, device] = await Promise.all([api('snapshot'), api('device-experience')]);
   applyTheme(state.settings.theme);
   render();
   if (detailId) renderDetail();
@@ -73,6 +75,10 @@ function render() {
     filters.query = search.value;
     if (view === 'settings' || view === 'study') view = 'all';
     renderContent();
+    if (search.value.trim() && !device.searched) {
+      device.searched = true;
+      api('update-experience', { searched: true }).catch((e) => toast(e.message));
+    }
   };
   app.querySelectorAll('[data-view]').forEach(
     (b) =>
@@ -165,6 +171,10 @@ function renderContent() {
         renderContent();
       }),
   );
+  addExperience(content, state, device, {
+    backup: () => exportDialog(exportSelection(), 'json'),
+    refresh,
+  });
   bindActions(content);
 }
 function card(p) {
@@ -225,7 +235,7 @@ function renderDetail() {
   const drawer = document.createElement('aside');
   drawer.className = 'drawer';
   drawer.setAttribute('aria-label', 'Page details');
-  drawer.innerHTML = `<div class="detail-resizer" role="separator" tabindex="0" aria-label="Resize source details" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="720" aria-valuenow="${state.settings.detailWidth}"></div><div class="drawer-header row between"><span class="eyebrow">${esc(p.type)} · ${hs.length} highlight${hs.length === 1 ? '' : 's'}</span><div class="row"><button class="icon-btn" data-collapse aria-label="Collapse details" title="Hide highlights and show the full library">${icon('chevron')}</button><button class="icon-btn" data-close aria-label="Close details">${icon('close')}</button></div></div><div class="drawer-content"><span class="eyebrow">${esc(hostname(p.url))}</span><h1>${esc(p.title)}</h1>${safeUrl(p.url) ? `<a class="source-link" href="${esc(safeUrl(p.url))}" target="_blank" rel="noreferrer">${esc(p.url)} ${icon('external', 11)}</a>` : ''}<div class="detail-tools">${action('reader', p.type === 'pdf' ? 'PDF viewer' : 'Read offline', p.type === 'pdf' ? 'file' : 'book')}${action('edit-page', 'Edit page', 'tag')}${action('translate-page', 'Translate', 'languages')}${action('read-aloud', 'Read aloud', 'book')}${action('capture-source', 'Quick note / audio', 'mic')}${action('bookmark', p.bookmarked ? 'Bookmarked' : 'Bookmark', 'bookmark', p.bookmarked ? 'primary' : '')}${action('copy-notion', 'Copy for Notion', 'external')}${action('download-md', 'Download .md', 'file')}${action('export-page', 'More exports', 'arrow')}${action('delete-page', 'Delete', 'trash', 'danger')}</div>${p.collection ? `<span class="tag">${esc(p.collection)}</span>` : ''}<div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="section-label">Page note</div><div class="note-preview">${p.note ? markdown(p.note) : '<p class="muted">Add a thought about this page with “Edit page”.</p>'}</div><div class="section-label">Voice recordings</div><div data-saved-audio></div><div class="section-label">On-device AI</div><div class="row wrap small">${action('summary', 'Summarize')}${action('chat', 'Ask this page')}${action('ai-cards', 'Draft flashcards')}</div><p class="muted small" style="margin-top:8px">Runs locally when supported by your browser. Model setup may require a download.</p>${p.summary ? `<div class="note-preview">${markdown(p.summary)}</div>` : ''}<div id="ai-status" class="muted small" role="status"></div><div class="row between section-label"><span>Highlights & notes</span>${action('add-note', 'Add note', 'plus', 'ghost')}</div>${hs.length ? hs.map((h) => `<article class="annotation" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${markdown(h.note)}</div><div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="annotation-actions"><button data-jump="${h.id}">Find</button><button data-translate-highlight="${h.id}">Translate</button><button data-card="${h.id}">${icon('flash', 12)} Study</button><button data-edit="${h.id}">Edit</button><button data-delete="${h.id}" aria-label="Delete highlight" class="danger">${icon('trash', 13)}</button></div></article>`).join('') : '<p class="muted small">No highlights yet. Open this page and select a passage.</p>'}</div>`;
+  drawer.innerHTML = `<div class="detail-resizer" role="separator" tabindex="0" aria-label="Resize source details" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="720" aria-valuenow="${state.settings.detailWidth}"></div><div class="drawer-header row between"><span class="eyebrow">${esc(p.type)} · ${hs.length} highlight${hs.length === 1 ? '' : 's'}</span><div class="row"><button class="icon-btn" data-collapse aria-label="Collapse details" title="Hide highlights and show the full library">${icon('chevron')}</button><button class="icon-btn" data-close aria-label="Close details">${icon('close')}</button></div></div><div class="drawer-content"><span class="eyebrow">${esc(hostname(p.url))}</span><h1>${esc(p.title)}</h1>${safeUrl(p.url) ? `<a class="source-link" href="${esc(safeUrl(p.url))}" target="_blank" rel="noreferrer">${esc(p.url)} ${icon('external', 11)}</a>` : ''}<div class="detail-tools">${action('reader', p.type === 'pdf' ? 'PDF viewer' : 'Read offline', p.type === 'pdf' ? 'file' : 'book')}${action('edit-page', 'Edit page', 'tag')}${action('translate-page', 'Translate', 'languages')}${action('read-aloud', 'Read aloud', 'book')}${action('capture-source', 'Quick note / audio', 'mic')}${action('bookmark', p.bookmarked ? 'Bookmarked' : 'Bookmark', 'bookmark', p.bookmarked ? 'primary' : '')}${action('copy-notion', 'Copy for Notion', 'external')}${action('download-md', 'Download .md', 'file')}${action('export-page', 'More exports', 'arrow')}${action('delete-page', 'Delete', 'trash', 'danger')}</div>${p.collection ? `<span class="tag">${esc(p.collection)}</span>` : ''}<div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="section-label">Page note</div><div class="note-preview">${p.note ? markdown(p.note) : '<p class="muted">Add a thought about this page with “Edit page”.</p>'}</div><div class="section-label">Voice recordings</div><div data-saved-audio></div><div class="section-label">On-device AI</div><div class="row wrap small">${action('summary', 'Summarize')}${action('chat', 'Ask this page')}${action('ai-cards', 'Draft flashcards')}</div><p class="muted small" style="margin-top:8px">Runs locally when supported by your browser. Model setup may require a download.</p>${p.summary ? `<div class="note-preview">${markdown(p.summary)}</div>` : ''}<div id="ai-status" class="muted small" role="status"></div><div class="row between section-label"><span>Highlights & notes</span>${action('add-note', 'Add note', 'plus', 'ghost')}</div>${hs.length ? hs.map((h) => `<article class="annotation" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${markdown(h.note)}</div>${h.originalText ? `<details class="repair-history"><summary>Original quote before repair</summary><blockquote>${esc(h.originalText)}</blockquote><p class="muted small">The last 10 replaced locations are retained in full backups.</p></details>` : ''}<div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="annotation-actions"><button data-jump="${h.id}">Find</button>${p.type !== 'pdf' ? `<button data-repair-highlight="${h.id}">Repair location</button>` : ''}<button data-translate-highlight="${h.id}">Translate</button><button data-card="${h.id}">${icon('flash', 12)} Study</button><button data-edit="${h.id}">Edit</button><button data-delete="${h.id}" aria-label="Delete highlight" class="danger">${icon('trash', 13)}</button></div></article>`).join('') : '<p class="muted small">No highlights yet. Open this page and select a passage.</p>'}</div>`;
   const workspace = document.querySelector('.workspace');
   workspace.append(drawer);
   renderAudioNotes(drawer.querySelector('[data-saved-audio]'), { pageId: p.id })
@@ -274,6 +284,13 @@ function renderDetail() {
   drawer
     .querySelectorAll('[data-jump]')
     .forEach((b) => (b.onclick = () => jump(p, b.dataset.jump)));
+  drawer.querySelectorAll('[data-repair-highlight]').forEach((button) => {
+    button.onclick = () =>
+      repairLocation(
+        p,
+        state.highlights.find((item) => item.id === button.dataset.repairHighlight),
+      );
+  });
 }
 function editHighlight(h) {
   dialog({
@@ -306,6 +323,60 @@ function newCard(h) {
       await api('add-card', { pageId: h.pageId, highlightId: h.id, ...Object.fromEntries(f) });
       await refresh();
       toast('Flashcard ready to review');
+    },
+  });
+}
+function repairLocation(page, highlight) {
+  const live = !!safeUrl(page.url);
+  const offline = !!(page.article || page.type === 'note' || page.text);
+  if (!live && !offline) return toast('Save an offline article before repairing this source.');
+  dialog({
+    title: 'Repair highlight location',
+    submit: 'Choose replacement passage',
+    body: `<p>Choose where to select the replacement passage. The same highlight keeps its notes, color, tags, flashcards and audio. Its original quotation is retained.</p><blockquote>${esc(highlight.text)}</blockquote><label class="field">Repair in<select name="repairWhere">${live ? '<option value="live">Original website</option>' : ''}${offline ? '<option value="offline">Saved offline article</option>' : ''}</select></label><p class="muted small">Select a new passage, review the previous and replacement text, then save. A changed live quote may not exist in an older offline copy; recapture the article if needed. PDF location repair is not included yet.</p>`,
+    onSubmit: async (form) => {
+      if (form.get('repairWhere') === 'offline') {
+        await extension.tabs.create({
+          url:
+            extension.runtime.getURL('reader.html') +
+            '?' +
+            new URLSearchParams({ id: page.id, repair: highlight.id }),
+        });
+        return;
+      }
+      let target;
+      for (const tab of await extension.tabs.query({})) {
+        try {
+          const result = await extension.tabs.sendMessage(tab.id, { action: 'status' });
+          if (result?.data?.url && canonicalUrl(result.data.url) === page.url) {
+            target = tab;
+            break;
+          }
+        } catch {}
+      }
+      target ||= await extension.tabs.create({ url: page.url });
+      await extension.tabs.update(target.id, { active: true });
+      if (target.windowId) await extension.windows.update(target.windowId, { focused: true });
+      for (let attempt = 0; attempt < 40; attempt++) {
+        try {
+          const response = await extension.tabs.sendMessage(target.id, {
+            action: 'repair',
+            id: highlight.id,
+          });
+          if (response?.ok) return;
+          if (response?.error && !response.error.includes('Reload this source'))
+            throw new Error(response.error);
+        } catch (error) {
+          if (attempt === 39)
+            throw new Error(
+              'Margin could not start repair. Refresh the source, check site access, then try Repair location again. ' +
+                error.message,
+              { cause: error },
+            );
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      throw new Error('Resume Margin on this website and try Repair location again.');
     },
   });
 }
@@ -357,6 +428,7 @@ function exportDialog(pages, initial = 'md') {
         metadata: f.has('metadata'),
         includeSource: f.has('source'),
       });
+      if (f.get('format') === 'json') await refresh();
       toast(
         f.get('format').includes('copy') || f.get('format') === 'clipboard'
           ? 'Copied. Paste into your notes app.'
@@ -429,6 +501,18 @@ function renderSettings(content) {
     await refresh();
   };
   addLanguageSettings(content);
+  addExperienceSettings(content, state, device, {
+    backup: () => exportDialog(state.pages, 'json'),
+    refresh,
+    showGuide: async () => {
+      revealGuide();
+      view = 'all';
+      filters = {};
+      closeDetail();
+      await refresh();
+      document.querySelector('.onboarding-guide')?.setAttribute('open', '');
+    },
+  });
   addDriveSettings(content);
   bindActions(content);
 }
@@ -760,7 +844,7 @@ async function mergeBackup(data) {
   toast('Backup merged into your library');
 }
 extension.storage.onChanged.addListener((changes) => {
-  if (changes.revision && !document.querySelector('dialog[open]'))
+  if ((changes.revision || changes.deviceRevision) && !document.querySelector('dialog[open]'))
     refresh().catch((e) => toast(e.message));
 });
 refresh().catch((e) => {

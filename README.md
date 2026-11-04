@@ -3,7 +3,7 @@
 <p align="center"><strong>Keep what stays with you.</strong><br>Highlight the web. Collect ideas. Take your research anywhere.</p>
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-245943"></a>
-  <img alt="Version 0.6.0" src="https://img.shields.io/badge/version-0.6.0-245943">
+  <img alt="Version 0.7.0" src="https://img.shields.io/badge/version-0.7.0-245943">
   <img alt="Chrome, Edge, Brave and Firefox" src="https://img.shields.io/badge/browsers-Chrome%20%C2%B7%20Edge%20%C2%B7%20Brave%20%C2%B7%20Firefox-245943">
 </p>
 <p align="center"><a href="#install">Install</a> · <a href="docs/GETTING-STARTED.md">First highlight</a> · <a href="FEATURES.md">Features</a> · <a href="docs/EXPORTS.md">Export your research</a> · <a href="PRIVACY.md">Privacy</a></p>
@@ -18,14 +18,22 @@ Margin is a free, open-source browser extension for highlights, notes, bookmarks
 
 | Browser         | Download                                                                                                                                    | Installation tutorial                                               |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Google Chrome   | [Chrome ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.6.0-chrome.zip)                       | [Chrome — five steps](docs/INSTALL.md#google-chrome)                |
-| Microsoft Edge  | [Edge ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.6.0-edge.zip)                           | [Edge — five steps](docs/INSTALL.md#microsoft-edge)                 |
-| Brave           | [Brave ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.6.0-brave.zip)                         | [Brave — five steps](docs/INSTALL.md#brave)                         |
-| Mozilla Firefox | [Firefox XPI — unsigned](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.6.0-firefox-unsigned.xpi) | [Firefox — temporary installation](docs/INSTALL.md#mozilla-firefox) |
+| Google Chrome   | [Chrome ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.7.0-chrome.zip)                       | [Chrome — five steps](docs/INSTALL.md#google-chrome)                |
+| Microsoft Edge  | [Edge ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.7.0-edge.zip)                           | [Edge — five steps](docs/INSTALL.md#microsoft-edge)                 |
+| Brave           | [Brave ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.7.0-brave.zip)                         | [Brave — five steps](docs/INSTALL.md#brave)                         |
+| Mozilla Firefox | [Firefox XPI — unsigned](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.7.0-firefox-unsigned.xpi) | [Firefox — temporary installation](docs/INSTALL.md#mozilla-firefox) |
 
 For Chrome, Edge, or Brave: **extract the ZIP → open your browser’s extensions page → enable Developer mode → Load unpacked → select the extracted folder.** Then pin Margin and refresh your website tab.
 
 Firefox currently loads as a **temporary add-on**, removed when Firefox closes. Permanent installation awaits Mozilla signing. The downloads are development/sideload builds, not browser-store listings. See the [installation guide](docs/INSTALL.md) for updates, permissions, and troubleshooting.
+
+## New in 0.7
+
+- **Quiet backup reminders:** weekly or change-count prompts, last-download status, snooze, and per-device controls. No push notifications or automatic uploads.
+- **Repair a moved highlight:** select a replacement passage and keep the same notes, color, tags, cards, and audio. Review both quotations before saving; the original quotation is retained. Website and saved-article repair are supported; PDF repair is not included yet.
+- **A gentler start:** an optional first-use checklist and a local practice page. Hide the guide any time and reopen it from Settings.
+
+[Try the new workflows →](docs/GETTING-STARTED.md#new-in-07)
 
 ## Your first highlight
 
@@ -81,7 +89,7 @@ Core research stays in your browser’s extension database. Margin has no teleme
 
 ## Compatibility and testing
 
-Tested in isolated desktop profiles: Chromium/Chrome regression environment, installed Edge and Brave (Chromium 156), and Firefox 157. The suite covers highlighting/reanchoring, notes, reader, PDFs and annotation exports, native audio recording with synthetic input, research exports, backup/restore, and sync fixtures. **58 unit tests pass.** Firefox ↔ Edge synchronization is also tested with local OAuth/Drive fixtures.
+Tested in isolated desktop profiles: Chromium/Chrome regression environment, installed Edge and Brave (Chromium 156), and Firefox 157. The suite covers highlighting/reanchoring, notes, reader, PDFs and annotation exports, native audio recording with synthetic input, research exports, backup/restore, and sync fixtures. **62 unit tests pass.** Firefox ↔ Edge synchronization is also tested with local OAuth/Drive fixtures.
 
 These checks do not certify every website, speech accuracy, every language/model, or Notion’s live importer. Browser-protected pages and scanned/image-only PDFs cannot be highlighted. [Browser differences and detailed validation](CROSS-BROWSER.md) · [Troubleshooting](docs/INSTALL.md#troubleshooting)
 

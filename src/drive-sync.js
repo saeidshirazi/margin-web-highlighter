@@ -89,8 +89,12 @@ export function createDriveSync({
       const merged = projectState(state, latest.backup);
       // Validation happens before the atomic data + journal transaction.
       await db.applySyncedBackup(merged, state);
-      if (stableJSON(merged) !== stableJSON({ ...latest.backup, exportedAt: undefined }))
+      if (stableJSON(merged) !== stableJSON({ ...latest.backup, exportedAt: undefined })) {
+        try {
+          await db.recordResearchChange?.();
+        } catch {}
         await chromeApi.storage.local.set({ revision: crypto.randomUUID() });
+      }
     });
     controller.signal.throwIfAborted();
     const own = files.find((file) => file.appProperties?.device === initial.state.device);

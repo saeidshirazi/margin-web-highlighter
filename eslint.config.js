@@ -31,6 +31,7 @@ export default [
         document: 'readonly',
         getSelection: 'readonly',
         MouseEvent: 'readonly',
+        HTMLAnchorElement: 'readonly',
         CSS: 'readonly',
       },
     },

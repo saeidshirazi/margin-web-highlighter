@@ -27,6 +27,7 @@ jobs:
       - run: npm run check
       - run: npx playwright install --with-deps chromium firefox
       - run: npm run test:e2e
+      - run: npm run test:experience
       - run: npm run test:native
       - run: npm run test:drive
       - run: npm run build:edge && npm run build:firefox

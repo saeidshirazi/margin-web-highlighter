@@ -424,3 +424,115 @@
     display: none;
   }
 }
+/* Device-only first-use guidance and quiet backup prompts. */
+.experience-tools {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 26px;
+}
+.onboarding-guide,
+.backup-reminder {
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+.onboarding-guide summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.onboarding-guide summary span {
+  font-size: 12px;
+  color: var(--muted, #63766b);
+}
+.onboarding-guide summary::after {
+  content: '⌄';
+  color: var(--muted);
+}
+.onboarding-guide[open] summary::after {
+  transform: rotate(180deg);
+}
+.onboarding-guide > p {
+  margin-top: 14px;
+}
+.onboarding-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+  padding: 0;
+  gap: 12px;
+  margin: 18px 0;
+}
+.onboarding-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.onboarding-steps li span {
+  color: var(--accent, #245943);
+  font-size: 19px;
+}
+.onboarding-steps li.complete {
+  color: var(--muted, #63766b);
+}
+.backup-reminder {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 4px solid #b4cf79;
+}
+.backup-reminder p {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.practice-page {
+  max-width: 860px;
+  padding: 36px 28px;
+  margin: auto;
+}
+.practice-intro {
+  margin: 30px 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+#practice-article {
+  font:
+    21px/1.9 Georgia,
+    serif;
+  margin: 44px 0;
+}
+#practice-article h1 {
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.3;
+}
+#practice-article p {
+  margin: 24px 0;
+}
+.repair-history {
+  margin: 12px 0;
+}
+.repair-history summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted, #63766b);
+}
+@media (max-width: 760px) {
+  .onboarding-steps {
+    grid-template-columns: 1fr;
+  }
+  .backup-reminder {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .onboarding-guide,
+  .backup-reminder {
+    padding: 18px;
+  }
+}
