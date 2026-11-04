@@ -141,6 +141,12 @@ try {
   assert.equal(backup.assets[0].base64, 'YWJj');
   assert.equal(backup.settings.translationTarget, 'fa');
   await a.api('update-experience', { guideHidden: true, searched: true, intervalDays: 30 });
+  await a.api('save-export-preset', {
+    id: 'local-preset',
+    name: 'Local preset',
+    format: 'md',
+    scope: 'all',
+  });
   const currentHighlight = (await a.api('snapshot')).highlights.find((item) => item.id === h.id);
   const replacement = 'A repaired shared quote';
   await a.api('repair-highlight', {
@@ -154,6 +160,7 @@ try {
   assert.equal((await b.api('backup')).highlights[0].originalText, 'A shared quote');
   assert.equal((await b.api('device-experience')).guideHidden, false);
   assert.equal((await b.api('device-experience')).intervalDays, 7);
+  assert.equal((await b.api('snapshot')).exportPresets.length, 0);
   const edgeFolder = path.resolve('dist-edge');
   edgeContext = await chromium.launchPersistentContext('', {
     channel: process.env.MARGIN_CROSS_CHROMIUM || 'msedge',
@@ -184,6 +191,7 @@ try {
   assert.equal((await edgeApi('backup')).pages[0].note, 'Original');
   assert.equal((await edgeApi('backup')).highlights[0].text, replacement);
   assert.equal((await edgeApi('backup')).highlights[0].originalText, 'A shared quote');
+  assert.equal((await edgeApi('snapshot')).exportPresets.length, 0);
   await edgeApi('save-page', { url: page.url, note: 'Edited from Chromium' });
   await edgeApi('drive-now');
   await a.driver.wait(async () => !(await edgeApi('drive-status')).busy, 20000);

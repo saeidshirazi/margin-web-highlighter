@@ -179,6 +179,12 @@ try {
   );
   assert.equal(restored.settings.translationTarget, 'fr');
   await a.api('update-experience', { guideHidden: true, searched: true, intervalDays: 30 });
+  await a.api('save-export-preset', {
+    id: 'local-export',
+    name: 'Local export',
+    format: 'agent',
+    scope: 'all',
+  });
   const currentHighlight = (await a.api('snapshot')).highlights.find((item) => item.id === h.id);
   const replacement = 'A repaired research quote';
   await a.api('repair-highlight', {
@@ -196,6 +202,7 @@ try {
   assert.equal((await b.api('device-experience')).guideHidden, false);
   assert.equal((await b.api('device-experience')).intervalDays, 7);
   assert.equal((await b.api('device-experience')).lastBackupAt, 0);
+  assert.equal((await b.api('snapshot')).exportPresets.length, 0);
   await a.api('drive-pause');
   await b.api('drive-pause');
   await a.api('save-page', { url: page.url, note: 'Edited on A' });

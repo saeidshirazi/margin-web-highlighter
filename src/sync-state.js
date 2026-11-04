@@ -165,6 +165,7 @@ export function projectState(state, current) {
     cards: [],
     assets: [],
     settings: { ...DEFAULT_SETTINGS },
+    exportPresets: current.exportPresets || [],
   };
   const ids = new Map(current.pages.map((page) => [canonicalUrl(page.url), page.id]));
   const active = Object.entries(state.entries).filter(([, entry]) => !entry.deleted);

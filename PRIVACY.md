@@ -1,8 +1,14 @@
 # Margin privacy policy
 
-Effective date: November 4, 2026. Applies to version 0.7.0.
+Effective date: November 4, 2026. Applies to version 0.8.0.
 
 Chrome, Edge, Brave, and Firefox store research in their own extension databases. Chrome uses its native Google token service. Edge, Brave, and Firefox use browser-managed web OAuth with a verified random state and exact callback; access tokens are cached only in extension session storage until expiry. No client secret is included. Firefox requests optional website-content, browsing-activity, and identifying-information transmission consent for Drive/in-app Google translation; voice recordings fall within identifying information. No optional transmission is required for local research. See [CROSS-BROWSER.md](CROSS-BROWSER.md) for API differences and installation.
+
+## Collection organization and saved export presets
+
+Collections remain labels on saved source records. Rename, move and removal update only those labels and timestamps; linked research IDs and attachments are preserved. Undo is held in the library tab for the last organization operation and is unavailable after reloading. Library collection links include the chosen collection path in the extension URL. Collection labels synchronize as part of ordinary research records when Drive is configured.
+
+Export presets store only an ID, name, research format, scope, collection path and metadata/source-text choices. They are kept in a separate local settings record, included in full JSON backups, and merged on import. They are excluded from Google Drive replicas and from research exports. No preset contains a password, API key, token, destination account or automatic online upload. A one-click preset performs the same user-initiated local download/clipboard/print action as the export center.
 
 ## Reminders, first-use guidance, and highlight repair
 

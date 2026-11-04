@@ -22,6 +22,7 @@ Load `dist` in Chrome, `dist-edge` in Edge, `dist-brave` in Brave, or `dist-fire
 npx playwright install chromium firefox
 npm run test:e2e
 npm run test:experience
+npm run test:organization
 npm run test:native
 npm run test:drive
 npm run build:firefox

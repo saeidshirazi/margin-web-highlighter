@@ -10,6 +10,15 @@ import {
 } from './core.js';
 import { languageCode } from './languages.js';
 import { EXPERIENCE_KEY, experienceState } from './experience.js';
+import {
+  PRESETS_KEY,
+  normalizePresets,
+  normalizePreset,
+  collectionPath,
+  collectionTarget,
+  inCollection,
+  collectionTree,
+} from './organization.js';
 const stores = ['pages', 'highlights', 'cards', 'settings', 'assets'];
 const anchorKey = (a) =>
   JSON.stringify([
@@ -81,15 +90,17 @@ export const deleteSetting = (id) =>
   transaction(['settings'], 'readwrite', (s) => request(s.settings.delete(id)));
 export async function snapshot() {
   return transaction(['pages', 'highlights', 'cards', 'settings'], 'readonly', async (s) => {
-    const [pages, highlights, cards, settings] = await Promise.all([
+    const [pages, highlights, cards, settings, presets] = await Promise.all([
       ...['pages', 'highlights', 'cards'].map((n) => request(s[n].getAll())),
       request(s.settings.get('main')),
+      request(s.settings.get(PRESETS_KEY)),
     ]);
     return {
       pages,
       highlights,
       cards,
       settings: { ...DEFAULT_SETTINGS, ...settings?.value },
+      exportPresets: normalizePresets(presets?.value || []),
     };
   });
 }
@@ -109,6 +120,7 @@ export async function backupSnapshot() {
       cards,
       assets,
       settings: { ...DEFAULT_SETTINGS, ...settings?.value },
+      exportPresets: normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []),
     };
   });
 }
@@ -152,6 +164,7 @@ export async function savePage(input) {
     ])
       if (input[key] !== undefined) page[key] = input[key];
     page.tags = input.tags !== undefined ? cleanTags(input.tags) : page.tags;
+    if (input.collection !== undefined) page.collection = collectionTarget(input.collection);
     if (page.type === 'note' && input.note !== undefined) page.text = String(input.note);
     page.updatedAt = now;
     await request(s.pages.put(page));
@@ -355,6 +368,148 @@ export async function applySyncedBackup(backup, journal) {
   });
 }
 
+export async function saveExportPreset(input) {
+  const preset = normalizePreset(input);
+  return transaction(['settings'], 'readwrite', async (s) => {
+    const presets = normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []);
+    const next = presets.filter((item) => item.id !== preset.id);
+    if (next.some((item) => item.name.toLocaleLowerCase() === preset.name.toLocaleLowerCase()))
+      throw new Error('Choose a different preset name.');
+    next.push(preset);
+    normalizePresets(next);
+    await request(s.settings.put({ id: PRESETS_KEY, value: next }));
+    return preset;
+  });
+}
+export async function deleteExportPreset(id) {
+  return transaction(['settings'], 'readwrite', async (s) => {
+    const presets = normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []);
+    await request(
+      s.settings.put({ id: PRESETS_KEY, value: presets.filter((item) => item.id !== id) }),
+    );
+  });
+}
+export async function organizeCollection({ from, to, remove = false }) {
+  from = collectionPath(from);
+  to = remove ? '' : collectionTarget(to, false);
+  if (!from) throw new Error('Choose a collection to organize.');
+  if (!remove && (from === to || inCollection(to, from)))
+    throw new Error('Choose a different destination outside this collection.');
+  return transaction(['pages', 'settings'], 'readwrite', async (s) => {
+    const pages = await request(s.pages.getAll());
+    const affected = pages.filter((page) => inCollection(page.collection, from));
+    if (!affected.length)
+      throw new Error('This collection is empty or was moved. Refresh your library.');
+    if (
+      !remove &&
+      collectionTree(pages).some((node) => node.path === to && !inCollection(node.path, from))
+    )
+      throw new Error(
+        'That destination already exists. Choose another name to avoid merging collections.',
+      );
+    const undo = { pages: [], presets: [] };
+    for (const page of affected) {
+      const next = remove ? '' : to + collectionPath(page.collection).slice(from.length);
+      undo.pages.push({ id: page.id, before: page.collection || '', after: next });
+      await request(
+        s.pages.put({
+          ...page,
+          collection: next,
+          updatedAt: Math.max(Date.now(), page.updatedAt + 1),
+        }),
+      );
+    }
+    if (!remove) {
+      const presets = normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []);
+      for (const preset of presets)
+        if (preset.scope === 'collection' && inCollection(preset.collection, from)) {
+          const next = to + preset.collection.slice(from.length);
+          undo.presets.push({ id: preset.id, before: preset.collection, after: next });
+          preset.collection = next;
+        }
+      await request(s.settings.put({ id: PRESETS_KEY, value: presets }));
+    }
+    return { count: affected.length, undo };
+  });
+}
+export async function movePagesToCollection({ ids, collection }) {
+  collection = collectionTarget(collection);
+  if (
+    !Array.isArray(ids) ||
+    !ids.length ||
+    ids.length > 10000 ||
+    new Set(ids).size !== ids.length ||
+    ids.some((id) => typeof id !== 'string')
+  )
+    throw new Error('Select between 1 and 10,000 distinct sources.');
+  return transaction(['pages'], 'readwrite', async (s) => {
+    const pages = [];
+    for (const id of ids) {
+      const page = await request(s.pages.get(id));
+      if (!page) throw new Error('A selected source was deleted. Nothing was moved.');
+      pages.push(page);
+    }
+    const undo = { pages: [], presets: [] };
+    for (const page of pages)
+      if (page.collection !== collection) {
+        undo.pages.push({ id: page.id, before: page.collection || '', after: collection });
+        await request(
+          s.pages.put({ ...page, collection, updatedAt: Math.max(Date.now(), page.updatedAt + 1) }),
+        );
+      }
+    return { count: undo.pages.length, undo };
+  });
+}
+export async function undoOrganization({ pages, presets = [] }) {
+  if (
+    !Array.isArray(pages) ||
+    !pages.length ||
+    pages.length > 10000 ||
+    new Set(pages.map((item) => item?.id)).size !== pages.length ||
+    pages.some(
+      (item) =>
+        !item ||
+        typeof item.id !== 'string' ||
+        typeof item.before !== 'string' ||
+        typeof item.after !== 'string',
+    ) ||
+    !Array.isArray(presets) ||
+    presets.length > 20 ||
+    presets.some(
+      (item) =>
+        !item ||
+        typeof item.id !== 'string' ||
+        typeof item.before !== 'string' ||
+        typeof item.after !== 'string',
+    )
+  )
+    throw new Error('This organization change cannot be undone.');
+  return transaction(['pages', 'settings'], 'readwrite', async (s) => {
+    const records = [];
+    for (const item of pages) {
+      const page = await request(s.pages.get(item.id));
+      if (!page || page.collection !== item.after)
+        throw new Error('Some sources were moved or deleted afterward. No changes were undone.');
+      records.push({ page, item });
+    }
+    for (const { page, item } of records)
+      await request(
+        s.pages.put({
+          ...page,
+          collection: item.before,
+          updatedAt: Math.max(Date.now(), page.updatedAt + 1),
+        }),
+      );
+    const saved = normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []);
+    for (const item of presets) {
+      const preset = saved.find((preset) => preset.id === item.id);
+      if (preset?.scope === 'collection' && preset.collection === item.after)
+        preset.collection = collectionTarget(item.before, false);
+    }
+    await request(s.settings.put({ id: PRESETS_KEY, value: saved }));
+    return { count: records.length };
+  });
+}
 export async function savePDF({ url, title, base64 }) {
   if (
     typeof base64 !== 'string' ||
@@ -391,8 +546,27 @@ export const deleteCard = (id) =>
   transaction(['cards'], 'readwrite', (s) => request(s.cards.delete(id)));
 export async function importBackup(data) {
   const validated = validateBackup(data);
+  const incomingPresets = normalizePresets(data.exportPresets || []);
   // Merge by canonical page URL; new IDs prevent imported records overwriting unrelated local data.
   return transaction(stores, 'readwrite', async (s) => {
+    const presets = normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []);
+    for (const preset of incomingPresets) {
+      if (
+        presets.some(
+          (item) =>
+            item.id === preset.id ||
+            JSON.stringify({ ...item, id: '' }) === JSON.stringify({ ...preset, id: '' }),
+        )
+      )
+        continue;
+      let name = preset.name,
+        index = 1;
+      while (presets.some((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase()))
+        name = preset.name.slice(0, 60) + ` (imported ${index++})`;
+      presets.push({ ...preset, name });
+    }
+    normalizePresets(presets);
+    await request(s.settings.put({ id: PRESETS_KEY, value: presets }));
     const localPages = await request(s.pages.getAll());
     const map = new Map();
     const localHighlights = await request(s.highlights.getAll());

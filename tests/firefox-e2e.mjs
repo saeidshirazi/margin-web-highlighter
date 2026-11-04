@@ -75,6 +75,10 @@ const click = (css) =>
       try {
         const item = await driver.findElement(By.css(css));
         if (!(await item.isDisplayed()) || !(await item.isEnabled())) return false;
+        await driver.executeScript(
+          (element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }),
+          item,
+        );
         await item.click();
         return true;
       } catch (error) {
@@ -300,6 +304,43 @@ try {
   assert.equal(afterRepair.cards[0].highlightId, h.id);
   pass(
     'native Firefox repair preview and keyboard confirmation preserve original quote, Markdown note and study card',
+  );
+  await click('[data-collection="Browsers"]');
+  await (await element('[data-collection="Browsers"]')).sendKeys(Key.SHIFT, Key.F10, Key.NULL);
+  await click('[data-folder-rename]');
+  await fill('dialog[open] [name=name]', 'Library');
+  await click('dialog[open] [type=submit]');
+  await poll(
+    async () =>
+      (await api('snapshot')).pages.find((item) => item.id === page.id).collection ===
+      'Library/Research',
+    'Firefox collection rename',
+  );
+  await click('.topbar [data-action=export]');
+  await click('.preset-editor summary');
+  await (await element('[name=format]')).sendKeys('AI-agent research bundle (.zip)');
+  await (await element('[data-preset-scope]')).sendKeys('Collection and subcollections');
+  await (await element('[data-preset-collection]')).sendKeys('Library/Research');
+  await fill('[data-preset-name]', 'Firefox research preset');
+  await click('[data-save-preset]');
+  await poll(
+    async () => (await api('snapshot')).exportPresets.length === 1,
+    'Firefox saved export preset',
+  );
+  const firefoxPreset = (await api('snapshot')).exportPresets[0];
+  assert.equal(firefoxPreset.scope, 'collection');
+  assert.equal(firefoxPreset.collection, 'Library/Research');
+  assert.equal(firefoxPreset.format, 'agent');
+  await click('dialog[open] .modal-head [data-close]');
+  await element('[data-run-preset]');
+  const presetBefore = new Set(await readdir(results));
+  await click('[data-run-preset]');
+  const presetZip = unzipSync(
+    new Uint8Array(await readFile(await downloaded(presetBefore, '.zip'))),
+  );
+  assert.equal(JSON.parse(strFromU8(presetZip['manifest.json'])).documents.length, 1);
+  pass(
+    'native Firefox nested navigation, keyboard collection rename and saved one-click agent export',
   );
 
   await click('[data-view=all]');

@@ -11,6 +11,9 @@ function serialize(run) {
 const drive = createDriveSync({ db, serialize });
 const mutations = new Set([
   'save-page',
+  'organize-collection',
+  'move-pages',
+  'undo-organization',
   'add-highlight',
   'update-highlight',
   'repair-highlight',
@@ -92,6 +95,22 @@ async function handle(type, p, sender) {
       throw new Error('Save this page first');
   }
   switch (type) {
+    case 'organize-collection':
+      return db.organizeCollection(p);
+    case 'move-pages':
+      return db.movePagesToCollection(p);
+    case 'undo-organization':
+      return db.undoOrganization(p);
+    case 'save-export-preset':
+    case 'delete-export-preset': {
+      const result =
+        type === 'save-export-preset'
+          ? await db.saveExportPreset(p)
+          : await db.deleteExportPreset(p.id);
+      await db.recordResearchChange().catch(() => {});
+      await extension.storage.local.set({ deviceRevision: crypto.randomUUID() });
+      return result;
+    }
     case 'append-note':
       return db.appendNote(p);
     case 'open-capture': {

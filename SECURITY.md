@@ -2,7 +2,7 @@
 
 ## Supported release
 
-Report security issues against the latest tagged release. The current release is 0.7.0. Fixes are provided on a best-effort basis; there is no guaranteed response-time SLA.
+Report security issues against the latest tagged release. The current release is 0.8.0. Fixes are provided on a best-effort basis; there is no guaranteed response-time SLA.
 
 ## Report privately
 

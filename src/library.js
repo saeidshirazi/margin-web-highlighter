@@ -3,6 +3,14 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { api } from './api.js';
 import { searchPages, safeUrl, canonicalUrl } from './core.js';
+import { inCollection, collectionPath, collectionTree, presetPages } from './organization.js';
+import {
+  mountCollections,
+  bindSourceDragging,
+  moveSourcesDialog,
+  createCollectionDialog,
+} from './collections-ui.js';
+import { setupPresets, addSavedExports } from './presets-ui.js';
 import {
   icon,
   esc,
@@ -26,6 +34,7 @@ import { openReadAloud } from './read-aloud.js';
 import { addDriveSettings } from './drive-ui.js';
 import { addExperience, addExperienceSettings, revealGuide } from './experience-ui.js';
 let releaseDetailAudio = () => {};
+let organizationUndo, organizationMessage;
 const app = document.querySelector('#app');
 let state,
   device,
@@ -56,7 +65,6 @@ function counts(p) {
 }
 function render() {
   detailScroll = document.querySelector('.drawer')?.scrollTop || detailScroll;
-  const collections = [...new Set(state.pages.map((p) => p.collection).filter(Boolean))].sort();
   app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><span class="brand-mark">${icon('logo', 25)}</span><div>margin<small>Ideas worth keeping</small></div></div><div class="nav">${[
     ['all', 'All pages', 'grid', state.pages.length],
     ['bookmarks', 'Bookmarks', 'bookmark', state.pages.filter((p) => p.bookmarked).length],
@@ -68,7 +76,7 @@ function render() {
     )
     .join(
       '',
-    )}</div><div class="nav-label eyebrow">Collections<button class="icon-btn" data-action="collection" aria-label="New collection">${icon('plus', 14)}</button></div><div class="collections nav">${collections.length ? collections.map((c) => `<button data-collection="${esc(c)}" class="${filters.collection === c ? 'active' : ''}">${icon('folder', 16)}<span>${esc(c)}</span></button>`).join('') : '<p class="muted small" style="padding:0 13px">Give your ideas a home.</p>'}</div><div class="sidebar-foot"><div class="nav"><button data-view="settings" class="${view === 'settings' ? 'active' : ''}">${icon('settings')}Settings & backups</button></div><div class="local-badge"><i class="dot"></i>Local first. Always yours.</div></div></aside><main class="workspace ${detailId && !detailsCollapsed ? 'details-open' : ''}" style="--details-width:${state.settings.detailWidth}px"><header class="topbar"><div class="search">${icon('search')}<input id="search" aria-label="Search library" placeholder="Search highlights, notes, and pages…" value="${esc(filters.query || '')}"></div><span class="key">Ctrl K</span>${action('export', 'Export', 'arrow')}${action('add', 'Add to library', 'plus', 'primary')}</header><div class="content" id="content"></div></main></div>`;
+    )}</div><div class="nav-label eyebrow">Collections<button class="icon-btn" data-action="collection" aria-label="New collection">${icon('plus', 14)}</button></div><div class="collections nav" data-collection-tree aria-label="Collections"></div><div class="sidebar-foot"><div class="nav"><button data-view="settings" class="${view === 'settings' ? 'active' : ''}">${icon('settings')}Settings & backups</button></div><div class="local-badge"><i class="dot"></i>Local first. Always yours.</div></div></aside><main class="workspace ${detailId && !detailsCollapsed ? 'details-open' : ''}" style="--details-width:${state.settings.detailWidth}px"><header class="topbar"><div class="search">${icon('search')}<input id="search" aria-label="Search library" placeholder="Search highlights, notes, and pages…" value="${esc(filters.query || '')}"></div><span class="key">Ctrl K</span>${action('export', 'Export', 'arrow')}${action('add', 'Add to library', 'plus', 'primary')}</header><div class="content" id="content"></div></main></div>`;
   renderContent();
   const search = app.querySelector('#search');
   search.oninput = () => {
@@ -91,16 +99,22 @@ function render() {
         render();
       }),
   );
-  app.querySelectorAll('[data-collection]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        closeDetail();
-        view = 'all';
-        filters = { collection: b.dataset.collection };
-        render();
-      }),
-  );
   bindActions(app);
+  mountCollections(app.querySelector('[data-collection-tree]'), state, filters, {
+    choose: (path) => {
+      closeDetail();
+      view = 'all';
+      filters = path === null ? { unfiled: true } : { collection: path };
+      history.replaceState(
+        null,
+        '',
+        path === null ? '#unfiled' : '#collection=' + encodeURIComponent(path),
+      );
+      selected.clear();
+      render();
+    },
+    changed: organizationChanged,
+  });
 }
 function renderContent() {
   const content = app.querySelector('#content');
@@ -113,7 +127,7 @@ function renderContent() {
   const tags = [
     ...new Set([...state.pages.flatMap((p) => p.tags), ...state.highlights.flatMap((h) => h.tags)]),
   ].sort();
-  content.innerHTML = `<div class="page-heading"><span class="eyebrow">Your personal reading space</span><h1>${esc(filters.collection || (view === 'bookmarks' ? 'Saved for later' : 'Keep what stays with you.'))}</h1><p class="heading-description">Your highlights, notes, and sources. Connected by curiosity. Kept on your device.</p><div class="library-metrics"><div><span>${icon('book', 19)}</span><strong>${state.pages.length}</strong><small>Saved documents</small></div><div><span>${icon('tag', 19)}</span><strong>${state.highlights.length}</strong><small>Highlights collected</small></div><div><span>${icon('folder', 19)}</span><strong>${new Set(state.pages.map((p) => p.collection).filter(Boolean)).size}</strong><small>Collections</small></div><div><span>${icon('flash', 19)}</span><strong>${state.cards.filter((c) => c.dueAt <= Date.now()).length}</strong><small>Cards to review</small></div></div></div><section class="transfer-strip"><div><span class="eyebrow">From reading to doing</span><strong>Take your ideas to the next step.</strong></div><div class="row wrap">${action('export-notion', 'Notion', 'external')}${action('export-markdown', 'Markdown', 'file')}${action('export-agent', 'For AI agents', 'flash')}${action('import-markdown', 'Import .md', 'plus', 'ghost')}${action('voice-note', 'Voice note', 'mic')}</div></section><div class="toolbar"><select id="type-filter" aria-label="Filter by document type"><option value="">All types</option>${[
+  content.innerHTML = `<div class="page-heading"><span class="eyebrow">Your personal reading space</span><h1>${esc(filters.collection || (filters.unfiled ? 'Unfiled sources' : view === 'bookmarks' ? 'Saved for later' : 'Keep what stays with you.'))}</h1><p class="heading-description">${filters.collection ? 'Includes sources in this collection and its subcollections.' : filters.unfiled ? 'Sources without collection labels. Your notes and highlights are kept.' : 'Your highlights, notes, and sources. Connected by curiosity. Kept on your device.'}</p><div class="library-metrics"><div><span>${icon('book', 19)}</span><strong>${state.pages.length}</strong><small>Saved documents</small></div><div><span>${icon('tag', 19)}</span><strong>${state.highlights.length}</strong><small>Highlights collected</small></div><div><span>${icon('folder', 19)}</span><strong>${collectionTree(state.pages).length}</strong><small>Collections</small></div><div><span>${icon('flash', 19)}</span><strong>${state.cards.filter((c) => c.dueAt <= Date.now()).length}</strong><small>Cards to review</small></div></div></div><section class="transfer-strip"><div><span class="eyebrow">From reading to doing</span><strong>Take your ideas to the next step.</strong></div><div class="row wrap">${action('export-notion', 'Notion', 'external')}${action('export-markdown', 'Markdown', 'file')}${action('export-agent', 'For AI agents', 'flash')}${action('import-markdown', 'Import .md', 'plus', 'ghost')}${action('voice-note', 'Voice note', 'mic')}</div></section><div class="toolbar"><select id="type-filter" aria-label="Filter by document type"><option value="">All types</option>${[
     ['web', 'Web pages'],
     ['pdf', 'PDF documents'],
     ['youtube', 'YouTube'],
@@ -153,14 +167,21 @@ function renderContent() {
   content.querySelectorAll('[data-page]').forEach((b) => {
     b.onclick = () => openDetail(b.dataset.page);
     b.onkeydown = (e) => {
-      if (e.key === 'Enter') openDetail(b.dataset.page);
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openDetail(b.dataset.page);
+      }
     };
   });
   content.querySelectorAll('[data-select]').forEach(
     (b) =>
       (b.onchange = () => {
         b.checked ? selected.add(b.dataset.select) : selected.delete(b.dataset.select);
+        const id = b.dataset.select;
         renderContent();
+        [...content.querySelectorAll('[data-select]')]
+          .find((item) => item.dataset.select === id)
+          ?.focus();
       }),
   );
   content.querySelectorAll('[data-layout]').forEach(
@@ -175,7 +196,61 @@ function renderContent() {
     backup: () => exportDialog(exportSelection(), 'json'),
     refresh,
   });
+  bindSourceDragging(content, selected);
+  addSavedExports(content, state, exportSelection(), runPreset);
+  if (organizationUndo) {
+    const notice = document.createElement('section');
+    notice.className = 'organization-notice';
+    notice.setAttribute('aria-label', 'Organization change');
+    notice.innerHTML = `<span>${esc(organizationMessage)}</span><button type="button" data-organization-undo>Undo last organization change</button>`;
+    notice.querySelector('button').onclick = async () => {
+      try {
+        await api('undo-organization', organizationUndo);
+        organizationUndo = null;
+        organizationMessage = '';
+        filters = {};
+        closeDetail();
+        await refresh();
+        toast('Organization change undone. Other edits were kept.');
+      } catch (error) {
+        toast(error.message);
+      }
+    };
+    content.prepend(notice);
+  }
   bindActions(content);
+}
+async function organizationChanged(result, label, route) {
+  if (result.count) {
+    organizationUndo = result.undo;
+    organizationMessage = `${label}: ${result.count} sources. Highlights, notes, cards and audio kept.`;
+  }
+  if (route?.from && filters.collection && inCollection(filters.collection, route.from))
+    filters = route.remove
+      ? { unfiled: true }
+      : {
+          ...filters,
+          collection: route.to + collectionPath(filters.collection).slice(route.from.length),
+        };
+  selected.clear();
+  closeDetail();
+  if (filters.collection)
+    history.replaceState(null, '', '#collection=' + encodeURIComponent(filters.collection));
+  else if (filters.unfiled) history.replaceState(null, '', '#unfiled');
+  await refresh();
+  if (!result.count) toast('These sources are already in that collection.');
+}
+async function runPreset(preset) {
+  const pages = presetPages(preset, state, exportSelection());
+  if (!pages.length)
+    throw new Error(
+      'No sources match this preset. Choose another collection or view; nothing was exported.',
+    );
+  await exportData(preset.format, pages, state.highlights, '', {
+    metadata: preset.metadata,
+    includeSource: preset.includeSource,
+  });
+  toast(`Exported ${pages.length} sources with preset ${preset.name}.`);
 }
 function card(p) {
   const hs = counts(p);
@@ -220,7 +295,15 @@ function closeDetail() {
   document.querySelector('[data-details-toggle]')?.remove();
   detailsCollapsed = false;
   detailScroll = 0;
-  history.replaceState(null, '', '#' + view);
+  history.replaceState(
+    null,
+    '',
+    filters.collection
+      ? '#collection=' + encodeURIComponent(filters.collection)
+      : filters.unfiled
+        ? '#unfiled'
+        : '#' + view,
+  );
 }
 function renderDetail() {
   releaseDetailAudio();
@@ -413,8 +496,9 @@ async function jump(p, id) {
     }
   }
 }
-function exportDialog(pages, initial = 'md') {
-  const hs = state.highlights.filter((h) => pages.some((p) => p.id === h.pageId));
+function exportDialog(initialPages, initial = 'md') {
+  let pages = initialPages;
+  let hs = state.highlights.filter((h) => pages.some((p) => p.id === h.pageId));
   const modal = dialog({
     title: 'Take your research with you',
     body: `<div class="export-summary"><span>${pages.length} documents</span><span>${hs.length} highlights</span><span>Notes & source links included</span></div><div class="destinations"><button type="button" data-destination="notion"><b>N</b><strong>Notion</strong><span>One Markdown file per page</span></button><button type="button" data-destination="md"><b>↓</b><strong>Markdown</strong><span>A portable research document</span></button><button type="button" data-destination="agent"><b>✦</b><strong>AI agents</strong><span>Sources, metadata & stable IDs</span></button></div><label class="field">Export format<select name="format"><option value="md">Markdown document (.md)</option><option value="notion">Notion import bundle (.zip)</option><option value="notion-copy">Copy formatted text for Notion</option><option value="agent">AI-agent research bundle (.zip)</option><option value="clipboard">Copy Markdown to clipboard</option><option value="json">Full backup · JSON (entire library)</option><option value="html">HTML · formatted, with colors</option><option value="csv">CSV · spreadsheets</option><option value="print">Print / Save as PDF</option></select></label><div class="export-options"><label><input type="checkbox" name="metadata"> Include YAML metadata</label><label><input type="checkbox" name="source"> Include saved source text</label></div><div id="export-guidance" class="export-guidance"></div><div data-password>${field('Optional password · encrypts JSON backup', 'password', '', 'password')}</div><details class="export-preview"><summary>Preview Markdown</summary><pre id="export-preview"></pre></details>`,
@@ -442,6 +526,11 @@ function exportDialog(pages, initial = 'md') {
   const update = () => {
     const format = select.value,
       backup = format === 'json';
+    const summaryPages = backup ? state.pages : pages;
+    modal.querySelector('.export-summary').innerHTML =
+      `<span>${summaryPages.length} documents</span><span>${state.highlights.filter((item) => summaryPages.some((page) => page.id === item.pageId)).length} highlights</span><span>Notes & source links included</span>`;
+    for (const button of modal.querySelectorAll('[data-save-preset],[data-update-preset]'))
+      button.disabled = backup;
     modal.querySelector('[data-password]').hidden = !backup;
     modal.querySelector('[name=password]').disabled = !backup;
     modal.querySelector('.export-options').hidden =
@@ -470,6 +559,27 @@ function exportDialog(pages, initial = 'md') {
           ? 'Download backup'
           : 'Download export';
   };
+  setupPresets(modal, state, {
+    apply: (preset, config) => {
+      pages = presetPages(config, state, initialPages);
+      hs = state.highlights.filter((item) => pages.some((page) => page.id === item.pageId));
+      if (preset) {
+        select.value = preset.format;
+        modal.querySelector('[name=metadata]').checked = preset.metadata;
+        modal.querySelector('[name=source]').checked = preset.includeSource;
+      }
+      update();
+    },
+    read: () => ({
+      format: select.value,
+      metadata: modal.querySelector('[name=metadata]').checked,
+      includeSource: modal.querySelector('[name=source]').checked,
+    }),
+    changed: (presets) => {
+      state.exportPresets = presets;
+      renderContent();
+    },
+  });
   select.onchange = update;
   modal.querySelectorAll('.export-options input').forEach((input) => (input.onchange = update));
   modal.querySelectorAll('[data-destination]').forEach(
@@ -600,6 +710,7 @@ function bindActions(root, page) {
 async function handleAction(name, p) {
   if (name === 'clear') {
     filters = {};
+    history.replaceState(null, '', '#' + view);
     render();
   }
   if (name === 'guide') guide();
@@ -678,21 +789,10 @@ async function handleAction(name, p) {
         await refresh();
       },
     );
-  if (name === 'move' || name === 'collection')
-    dialog({
-      title: name === 'move' ? 'Move selected pages' : 'Create a collection',
-      body: `${field('Collection name · use / for nested folders', 'collection')}<p class="muted small">${name === 'collection' ? 'Choose pages to add to this collection. A collection appears once it contains a page.' : ''}</p>${name === 'collection' ? state.pages.map((p) => `<label class="row small"><input type="checkbox" name="page" value="${p.id}">${esc(p.title)}</label>`).join('') : ''}`,
-      onSubmit: async (f) => {
-        const ids = name === 'move' ? [...selected] : f.getAll('page');
-        if (!ids.length) throw new Error('Choose at least one page');
-        for (const id of ids) {
-          const page = state.pages.find((p) => p.id === id);
-          await api('save-page', { url: page.url, collection: String(f.get('collection')).trim() });
-        }
-        selected.clear();
-        await refresh();
-      },
-    });
+  if (name === 'move')
+    moveSourcesDialog([...selected], state, organizationChanged, filters.collection || '');
+  if (name === 'collection')
+    createCollectionDialog(state, organizationChanged, filters.collection || '');
   if (name === 'add')
     (dialog({
       title: 'Add to your library',
@@ -822,6 +922,16 @@ function pdfDialog() {
   });
 }
 document.addEventListener('keydown', (e) => {
+  if (
+    e.altKey &&
+    e.key.toLowerCase() === 'm' &&
+    selected.size &&
+    !document.querySelector('dialog[open]') &&
+    !e.target.closest('textarea,input:not([type=checkbox]),select,[contenteditable=true]')
+  ) {
+    e.preventDefault();
+    moveSourcesDialog([...selected], state, organizationChanged, filters.collection || '');
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
     app.querySelector('#search')?.focus();
@@ -831,6 +941,9 @@ document.addEventListener('keydown', (e) => {
 const hash = location.hash;
 if (hash === '#settings') view = 'settings';
 else if (hash === '#study') view = 'study';
+else if (hash === '#unfiled') filters = { unfiled: true };
+else if (hash.startsWith('#collection='))
+  filters = { collection: decodeURIComponent(hash.slice(12)) };
 else if (hash.startsWith('#page=')) detailId = decodeURIComponent(hash.slice(6));
 async function mergeBackup(data) {
   const id = 'pending-import:' + crypto.randomUUID();

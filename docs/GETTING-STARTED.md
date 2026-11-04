@@ -15,7 +15,7 @@ You can also select text and press **Alt S**, or right-click → Margin’s high
 
 ## Find and organize
 
-Search the library for a word from a title, URL, quote, note, or captured source text. Filter by color, tag, type, bookmark, or collection. Open a source to see its notes and quotes beside the library. Collapse details to get more space, or drag the divider to resize them. Collection names can use paths such as `Research/Reading`; these currently appear as a flat list.
+Search the library for a word from a title, URL, quote, note, or captured source text. Filter by color, tag, type, bookmark, or collection. Open a source to see its notes and quotes beside the library. Collapse details to get more space, or drag the divider to resize them. Collection names use paths such as `Research/Reading`. Parent folders appear automatically, and choosing a parent includes its subcollections. [Manage collections and save export presets](ORGANIZATION.md).
 
 ## Save an offline article
 

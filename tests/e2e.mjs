@@ -115,7 +115,10 @@ try {
   await library.locator('dialog input[name=collection]').fill('Research / Reading');
   await library.locator('dialog input[name=tags]').fill('attention');
   await library.locator('dialog[open] button[type=submit]').click();
-  await expect(library.locator('[data-collection]')).toHaveText('Research / Reading');
+  await expect(library.locator('[data-collection="Research"]')).toContainText('Research');
+  await expect(
+    library.locator('[data-collection="Research/Reading"] .collection-label'),
+  ).toHaveText('Reading');
   await library.locator('.drawer [data-close]').click();
   await library.locator('#search').fill('lasting idea');
   await expect(library.locator('.page-card')).toHaveCount(1);

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — November 4, 2026
+
+- Added nested collection navigation, implicit parents, subtree counts, deep links, arrow-key expansion and keyboard management.
+- Added atomic branch rename/move and bulk source moves, source/folder drag-and-drop, safe unfiling, and guarded undo that preserves later edits. Existing destinations are not silently merged and cycles are rejected.
+- Added up to 20 local export presets for explicit view/all/collection scopes. Research downloads, rich copy and print can be preset; credentials and full-backup passwords cannot. Local branch operations update preset paths.
+- Full version-2 JSON backups include optional preset metadata and merge it repeat-safely. Drive wire format and research compatibility are unchanged; each device keeps its own presets.
+- Added 7 organization tests (69 total), native browser coverage for hierarchy, drag, keyboard, scope/privacy and rollback, plus Firefox native preset-export coverage. No new extension permissions or dependencies.
+
 ## 0.7.0 — November 4, 2026
 
 - Added quiet, configurable device-only backup reminders, last-download status, seven-day snooze, and reminder opt-out. Full JSON/encrypted downloads acknowledge a conservative revision so concurrent edits remain pending; failed download requests are not acknowledged.

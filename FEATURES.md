@@ -1,6 +1,14 @@
-# Features in Margin 0.7.0
+# Features in Margin 0.8.0
 
 [Install](docs/INSTALL.md) · [Getting started](docs/GETTING-STARTED.md) · [Browser compatibility and tests](CROSS-BROWSER.md)
+
+## New in 0.8
+
+Nested collection navigation includes parent folders, subtree counts, collapse/expand and arrow-key controls. Rename/move operations update whole branches atomically and preserve source/annotation IDs. Bulk moves support drag-and-drop and Alt M; removing collection labels never deletes research. Undo keeps later note edits and refuses to overwrite sources moved/deleted afterward. Collections appear when they contain sources; empty folders are not stored separately.
+
+Save up to 20 export presets for the current selection/filtered view, all sources, or a specific collection with its subcollections. Scope is explicit; empty/missing collections never fall back to the entire library. Presets can be updated/deleted, carry no passwords or keys, and are included in full JSON backups. They are local browser preferences and do not sync through Google Drive. Local collection renames/moves update scoped presets.
+
+[Step-by-step organization guide](docs/ORGANIZATION.md).
 
 ## New in 0.7
 
@@ -19,7 +27,7 @@
 | Quick mode        | Highlight each selection; number keys switch colors, Escape stops                                      |
 | Notes             | Markdown notes on pages and highlights, standalone notes, source-linked quick capture                  |
 | Library           | Grid/list views; full-text search; color/type/tag/bookmark/collection filters; sort and bulk actions   |
-| Collections       | Searchable path-style names; currently displayed as a flat list                                        |
+| Collections       | Nested path navigation, subtree counts, safe branch rename/move, bulk moves and undo                   |
 | Details workspace | Docked, collapsible, resizable; inline layout on narrow windows; reduced-motion support                |
 | Browser sidebar   | Notes/highlights beside the original source, with an inline quick-note editor                          |
 

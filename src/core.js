@@ -1,3 +1,4 @@
+import { inCollection, collectionPath } from './organization.js';
 export const VERSION = 2;
 export const COLORS = ['#ffe08a', '#a8e6cf', '#9ed5fa', '#d6bafa', '#ffb8ce'];
 export const DEFAULT_SETTINGS = {
@@ -54,7 +55,8 @@ export function searchPages(pages, highlights, filters = {}) {
   return pages
     .filter((page) => {
       const hs = highlights.filter((h) => h.pageId === page.id);
-      if (filters.collection && page.collection !== filters.collection) return false;
+      if (filters.collection && !inCollection(page.collection, filters.collection)) return false;
+      if (filters.unfiled && collectionPath(page.collection)) return false;
       if (filters.bookmarked && !page.bookmarked) return false;
       if (filters.tag && ![...page.tags, ...hs.flatMap((h) => h.tags)].includes(filters.tag))
         return false;
