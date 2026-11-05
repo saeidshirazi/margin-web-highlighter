@@ -634,12 +634,10 @@ try {
   await library.waitForTimeout(100);
   await expect(library.locator('[name=result]')).toHaveValue('Newest translation');
   await library.locator('dialog[open] [type=submit]').click();
-  assert.ok(
-    (await snap()).pages.find((p) => p.id === voicePage.id).note.includes('Newest translation'),
-  );
-  assert.ok(
-    !(await snap()).pages.find((p) => p.id === voicePage.id).note.includes('Old translation'),
-  );
+  await expect(library.locator('dialog[open]')).toHaveCount(0);
+  const translatedNote = (await snap()).pages.find((p) => p.id === voicePage.id).note;
+  assert.ok(translatedNote.includes('Newest translation'));
+  assert.ok(!translatedNote.includes('Old translation'));
   await library.locator('.drawer [data-close]').click();
   await library.locator('[data-view=settings]').click();
   await library.locator('[data-key-clear]').click();
