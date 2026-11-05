@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="Margin is a free, open-source browser highlighter with local research storage, portable exports and optional Google Drive sync."
+    />
+    <title>Privacy policy · Margin</title>
+    <link rel="icon" href="site-logo.svg" />
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="./"><img src="site-logo.svg" width="40" height="40" alt="" />Margin</a>
+      <nav aria-label="Main">
+        <a href="https://github.com/saeidshirazi/margin-web-highlighter/releases/latest">Download</a
+        ><a href="https://github.com/saeidshirazi/margin-web-highlighter/blob/main/docs/INSTALL.md"
+          >Install guide</a
+        ><a href="https://github.com/saeidshirazi/margin-web-highlighter">Source</a>
+      </nav>
+    </header>
+    <main>
+      <h1>Margin privacy policy</h1>
+      <p>Effective date: November 4, 2026. Applies to version 0.8.0.</p>
+      <p>
+        Chrome, Edge, Brave, and Firefox store research in their own extension databases. Chrome
+        uses its native Google token service. Edge, Brave, and Firefox use browser-managed web OAuth
+        with a verified random state and exact callback; access tokens are cached only in extension
+        session storage until expiry. No client secret is included. Firefox requests optional
+        website-content, browsing-activity, and identifying-information transmission consent for
+        Drive/in-app Google translation; voice recordings fall within identifying information. No
+        optional transmission is required for local research. See
+        <a href="https://github.com/saeidshirazi/margin-web-highlighter/blob/main/CROSS-BROWSER.md"
+          >CROSS-BROWSER.md</a
+        >
+        for API differences and installation.
+      </p>
+      <h2>Collection organization and saved export presets</h2>
+      <p>
+        Collections remain labels on saved source records. Rename, move and removal update only
+        those labels and timestamps; linked research IDs and attachments are preserved. Undo is held
+        in the library tab for the last organization operation and is unavailable after reloading.
+        Library collection links include the chosen collection path in the extension URL. Collection
+        labels synchronize as part of ordinary research records when Drive is configured.
+      </p>
+      <p>
+        Export presets store only an ID, name, research format, scope, collection path and
+        metadata/source-text choices. They are kept in a separate local settings record, included in
+        full JSON backups, and merged on import. They are excluded from Google Drive replicas and
+        from research exports. No preset contains a password, API key, token, destination account or
+        automatic online upload. A one-click preset performs the same user-initiated local
+        download/clipboard/print action as the export center.
+      </p>
+      <h2>Reminders, first-use guidance, and highlight repair</h2>
+      <p>
+        Backup reminder preferences, local change counters, last full-backup download time, snooze
+        date and guide progress are stored in a separate device-only settings record. They are
+        excluded from research backups and Google Drive sync. The browser can report that a download
+        was requested, not that you kept the resulting file. The practice page is bundled locally
+        and saves an ordinary practice source only after an explicit highlight action. No telemetry
+        or notification permission is added.
+      </p>
+      <p>
+        Repair replaces the location and current quotation of an existing highlight after
+        confirmation. Its notes, tags, cards and audio remain linked. The first quotation and up to
+        10 previous locations are retained in its research record, full backups and configured Drive
+        sync. Those historical quotations may include text no longer visible on the original page.
+        Deleting a highlight removes its local repair history; existing backups, sync replicas and
+        recovery copies follow their usual retention/deletion rules.
+      </p>
+      <h2>Optional Google Drive sync</h2>
+      <p>
+        Research remains local by default. When you explicitly consent and connect Google Drive in
+        Settings, Margin sends your full saved library to Google&#39;s Drive API at
+        <code>https://www.googleapis.com</code>: URLs, titles, text/HTML, highlights, notes, tags,
+        collections, bookmarks, transcripts, PDFs, audio attachments, flashcards/review progress,
+        and library preferences. Other connected installations signed in to that Google account
+        download and merge that data. Deletions synchronize. Temporary editor drafts, browser
+        permissions, downloaded AI models and credentials are not included.
+      </p>
+      <p>
+        Margin requests only the OAuth <code>drive.appdata</code> scope, which accesses Margin&#39;s
+        hidden app-data folder rather than unrelated Drive files. The browser handles Google
+        sign-in; token caching differs as described above. Margin does not put tokens or client
+        secrets in its database, exports, or sync files. The public OAuth client ID is build
+        configuration, not a secret. Account name/email, an account binding, sync state and
+        last-sync time are stored locally for display and account isolation. Margin does not run an
+        account or sync server.
+      </p>
+      <p>
+        Each device retains an offline sync journal and uploads a full replica with deletion markers
+        and conflicting-edit recovery copies. Those copies can retain deleted text/attachments.
+        Recovery downloads contain those research values. Sync files are not password/end-to-end
+        encrypted by Margin; Google&#39;s access controls and storage policies apply. Each replica
+        has a 256 MB JSON limit and consumes Drive quota; multiple devices retain separate copies.
+        The extension does not charge a sync fee.
+      </p>
+      <p>
+        Automatic sync runs approximately 30 seconds after changes and every 5 minutes while the
+        browser runs; offline or failed changes retry later. Pausing stops automatic sync.
+        Disconnecting stops sync and clears cached Google tokens but keeps local research, the
+        journal/account binding, and cloud files. It does not revoke Google authorization. Manage
+        authorization in your Google account, and remove app data in Drive settings if desired.
+        Disconnect before removing cloud files to prevent re-upload. A different Google account
+        requires a separate browser profile to prevent accidental mixing. Independent exported
+        backups must be deleted separately.
+      </p>
+      <h2>Audio recording and quick notes</h2>
+      <p>
+        An explicit <strong>Record voice</strong> action requests microphone access and records
+        locally using MediaRecorder. Unlike dictation, this creates an audio attachment. Margin
+        stores the audio bytes in its extension IndexedDB database when you save the note, and
+        includes them in JSON backups. Imported audio files are also stored locally. Audio
+        recording/upload does not send the file to a transcription service. Recording stops after 5
+        minutes or the 20 MB limit; you can stop it earlier. The microphone stream is released on
+        stop, error, editor close, or page teardown. While the stable capture tab remains open,
+        recording can continue while you switch to the original source tab; Chrome&#39;s microphone
+        indicator remains relevant.
+      </p>
+      <p>
+        Saved audio can be played, downloaded, or deleted. Deleting a page deletes its audio.
+        Recordings already exported in backups/downloads must be removed separately if desired.
+        Binary audio is excluded from Markdown, HTML, Notion, and agent research exports.
+      </p>
+      <p>
+        The default translation workflow is an explicit Google Translate website handoff. Its text
+        is included in the URL and can enter browser history. Pasting the result back saves it
+        locally. This replaces the misleading assumption that local Persian translation was
+        available. Optional in-app Google Cloud/local translation and online speech retain their
+        explicit provider/permission requirements.
+      </p>
+      <p>
+        Read-aloud uses installed browser/system voices. Online voices are hidden unless you allow
+        them, and those providers&#39; audio/text-processing policies apply when selected. Core
+        highlighting, quick typed notes, and local recording do not require an account or API key.
+      </p>
+      <h2>Optional speech and translation</h2>
+      <p>
+        Dictation uses Chrome&#39;s SpeechRecognition API only after you start it. Local mode
+        requests <code>processLocally</code> and does not silently fall back to a remote service.
+        Downloading a speech language pack is a separate user action. Browser-service mode requires
+        explicit audio-processing consent and may send audio to Chrome&#39;s speech provider. Chrome
+        handles microphone permission and speech processing. Dictation inserts confirmed text into
+        your note; the separate Record voice action explicitly creates an audio attachment. Closing
+        the editor aborts recognition.
+      </p>
+      <p>
+        Local translation uses Chrome&#39;s Translator and LanguageDetector APIs with
+        browser-managed models. In <strong>Google Cloud Translation</strong> mode, after
+        text-sharing consent and host permission, Margin posts only the text visible in the
+        translation window plus source/target language settings to
+        <code>https://translation.googleapis.com/language/translate/v2</code>. Your own API key is
+        required. It is sent in a header, not the request URL. If you choose to remember it, it is
+        stored in <code>chrome.storage.session</code> for the current browser session, not
+        IndexedDB, exports, or backups. The key can be removed in Settings. Google Cloud&#39;s
+        account, billing, and data policies apply.
+      </p>
+      <p>
+        The <strong>Open Google Translate</strong> button opens Google&#39;s website with the
+        displayed text and language choices in its URL. This sends that text to Google on navigation
+        and can leave the URL in browser history. It is an explicit external handoff, not private
+        local translation.
+      </p>
+      <p>
+        The optional Google API host grant uses the existing optional HTTPS host-permission
+        mechanism. The extension adds no blanket microphone permission; Chrome&#39;s
+        speech/microphone access is requested when dictation starts. Default target/spoken languages
+        and details-panel width are stored locally as preferences.
+      </p>
+      <p>
+        Markdown imports store the text you select or paste as a local document. A SHA-256 content
+        fingerprint identifies unchanged imports; the fingerprint stays on your device. Notion
+        exports and AI-agent bundles are local file or clipboard operations, not automatic uploads.
+        They include the selected documents&#39; notes and annotations; agent manifests also contain
+        quote anchors with surrounding context. Including full saved source text is an explicit
+        export option. Once you paste or import an export into another service or agent, that
+        destination controls its copy of the data.
+      </p>
+      <p>
+        Margin has no account service, telemetry, advertising SDK, subscription service, or
+        developer-operated remote database. It does not sell research data. Optional sync sends
+        research to the Google account you connect, as described above.
+      </p>
+      <h2>What is stored</h2>
+      <p>
+        When you highlight or save a page, Margin stores its URL, title, selected quotations, anchor
+        context, colors, notes, tags, collection, and timestamps. Saving an offline article also
+        stores extracted article text and sanitized HTML. Saving a transcript stores the visible
+        transcript segments. Importing a PDF stores a local copy of its bytes. Flashcards and
+        settings remain local as well.
+      </p>
+      <p>
+        Research lives in IndexedDB under the extension&#39;s own origin in your browser profile,
+        alongside an offline journal when sync is used. <code>chrome.storage.local</code> contains
+        change notifications and Google Drive account/sync status. Print exports temporarily use
+        <code>chrome.storage.session</code> until the print view reads them. Chrome permissions
+        configuration and shortcuts are managed by Chrome. Margin does not use
+        <code>chrome.storage.sync</code>; optional Google Drive sync is a separate, consented
+        feature.
+      </p>
+      <h2>Access to websites</h2>
+      <p>
+        The content script runs on ordinary HTTP/HTTPS pages to offer highlighting and restore saved
+        annotations. Merely visiting a page does not add it to the research library. Data is saved
+        when you highlight, bookmark, or explicitly capture a page. Margin periodically checks the
+        current page address to handle single-page navigation. Pausing a site removes its annotation
+        controls and highlights until resumed.
+      </p>
+      <p>
+        Saved articles are sanitized and omit remote images and scripts. The library does not
+        request site favicons, remote cover images, web fonts, analytics, or third-party CSS.
+        External links open the original website only when used.
+      </p>
+      <h2>Optional network operations</h2>
+      <p>
+        A remote PDF is downloaded only when you supply its URL and approve access to that site.
+        Fetches omit credentials. A local PDF upload needs no network. Chrome may download or update
+        its own on-device AI model under Chrome&#39;s policies; Margin sends source content to local
+        browser APIs, not a cloud AI endpoint. AI functionality has no fallback to remote inference.
+      </p>
+      <p>
+        YouTube videos remain on the original YouTube website. Capturing an already-visible
+        transcript does not call a transcript API. Seeking/following an existing video uses
+        extension messages to that tab. Opening the original video makes the normal request to
+        YouTube; its own privacy policy applies.
+      </p>
+      <h2>Backups and deletion</h2>
+      <p>
+        JSON backups contain your research, including source URLs and PDF attachments. Exports are
+        plaintext unless you choose password-encrypted JSON. Local IndexedDB data itself is not
+        encrypted by Margin; protect your device and Chrome profile. The encryption password is used
+        in memory and is never saved. There is no password recovery service.
+      </p>
+      <p>
+        Delete individual highlights, cards, or pages in the library. Deleting a page removes its
+        annotations, linked flashcards, and stored PDF attachment in one transaction. Uninstalling
+        the extension removes its local database. Keep a backup before uninstalling. Copies exported
+        to files must be deleted separately if desired.
+      </p>
+      <h2>Permissions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Permission</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>storage</code></td>
+            <td>Local change notifications between extension views and temporary print exports</td>
+          </tr>
+          <tr>
+            <td><code>unlimitedStorage</code></td>
+            <td>
+              Local article/PDF storage beyond the ordinary small quota; subject to device space
+            </td>
+          </tr>
+          <tr>
+            <td><code>contextMenus</code></td>
+            <td>Highlight selected text and bookmark from the right-click menu</td>
+          </tr>
+          <tr>
+            <td><code>activeTab</code></td>
+            <td>Access the page on which the extension action is invoked</td>
+          </tr>
+          <tr>
+            <td><code>sidePanel</code></td>
+            <td>Show a page&#39;s highlights beside the site</td>
+          </tr>
+          <tr>
+            <td><code>identity</code></td>
+            <td>Google OAuth sign-in and cached tokens for optional Drive sync</td>
+          </tr>
+          <tr>
+            <td><code>alarms</code></td>
+            <td>Schedule pending/periodic Drive synchronization while Chrome runs</td>
+          </tr>
+          <tr>
+            <td>HTTP/HTTPS/file content-script matches</td>
+            <td>
+              Display the selection toolbar and restore highlights on pages; file access is
+              controlled separately by Chrome
+            </td>
+          </tr>
+          <tr>
+            <td>Optional per-site HTTP/HTTPS host access</td>
+            <td>
+              Requested remote PDF downloads, explicit Google Cloud translation, or consented Google
+              Drive API requests
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        There are no <code>history</code>, <code>cookies</code>, <code>webRequest</code>, or broad
+        <code>tabs</code> permissions. The extension does not read browsing history. A future
+        maintainer can publish this policy with their release and provide contact information
+        through the repository&#39;s issue/security reporting channels.
+      </p>
+      <h2>This project website</h2>
+      <p>
+        This static website has no analytics scripts, advertising or sign-in. GitHub Pages hosts it
+        and records visitor IP addresses for security under
+        <a
+          href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
+          >GitHub’s privacy policy</a
+        >. The extension’s research database is separate from this website.
+      </p>
+      <p>
+        Questions:
+        <a href="https://github.com/saeidshirazi/margin-web-highlighter/issues">project support</a>.
+        Please do not post private research or credentials in public issues.
+      </p>
+    </main>
+    <footer>
+      <a href="privacy.html">Privacy policy</a><a href="terms.html">Terms &amp; license</a
+      ><a href="https://github.com/saeidshirazi/margin-web-highlighter/issues">Support</a
+      ><span>Free and open source. Local first.</span>
+    </footer>
+  </body>
+</html>
