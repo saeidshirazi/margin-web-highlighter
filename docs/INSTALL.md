@@ -1,52 +1,36 @@
 # Install Margin
 
-Choose your browser below. **You do not need Node.js, a terminal, or an account.**
+Get your browser package from the [latest GitHub release](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest). Use the browser ZIP or XPI under **Assets**. Install on a desktop browser with Chromium 150+ or Firefox 150+.
 
-Download a browser-specific file from [the latest release](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest). Use the assets named `margin-0.8.1-…`, rather than GitHub’s automatic “Source code” downloads. Those source downloads require building first.
+## Chrome, Edge, and Brave
 
-## Google Chrome
+1. Extract the ZIP for your browser into a folder you plan to keep.
+2. Open the extensions page listed below and turn on **Developer mode**.
+3. Click **Load unpacked** and select the folder that contains `manifest.json`.
+4. Pin Margin from the Extensions menu, then refresh the page you want to highlight.
 
-1. Download **margin-0.8.1-chrome.zip** and extract it to a folder you will keep, such as `Documents/Margin/Chrome`.
-2. In Chrome’s address bar, type `chrome://extensions` and press Enter.
-3. Turn on **Developer mode** at the top right.
-4. Click **Load unpacked** and select the extracted folder containing `manifest.json`. Select the folder, not that file.
-5. Open Chrome’s puzzle-piece **Extensions** menu, pin **Margin**, and refresh the website you want to highlight.
+### Google Chrome
 
-Click **Margin → Open your library**. Continue with [your first highlight](GETTING-STARTED.md).
+Download the asset ending in `-chrome.zip` and open `chrome://extensions`.
 
-## Microsoft Edge
+### Microsoft Edge
 
-1. Download **margin-0.8.1-edge.zip** and extract it to a permanent folder, such as `Documents/Margin/Edge`.
-2. In Edge, open `edge://extensions`.
-3. Turn on **Developer mode**. Its position may vary with the window size.
-4. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
-5. Pin **Margin** from Edge’s **Extensions** menu and refresh your website tab.
+Download the asset ending in `-edge.zip` and open `edge://extensions`.
 
-Click **Margin → Open your library**. Continue with [your first highlight](GETTING-STARTED.md).
+### Brave
 
-## Brave
-
-1. Download **margin-0.8.1-brave.zip** and extract it to a permanent folder, such as `Documents/Margin/Brave`.
-2. In Brave, open `brave://extensions`.
-3. Turn on **Developer mode** at the top right.
-4. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
-5. Pin **Margin** from the puzzle-piece **Extensions** menu and refresh your website tab.
-
-On Windows, if the folder picker is confusing: click its address bar, paste the extracted folder’s path, press Enter, then click **Select Folder**. Click **Margin → Open your library** to start. Brave Shields do not need to be disabled for the tested core workflows.
+Download the asset ending in `-brave.zip` and open `brave://extensions`.
 
 ## Mozilla Firefox
 
-**This release is unsigned and temporarily installed. Firefox removes it when you close the browser.** Export a full JSON backup before ending your test session; do not rely on temporary-install storage surviving removal/reinstallation.
+1. Download the asset ending in `-firefox-unsigned.xpi`.
+2. Open `about:debugging#/runtime/this-firefox`.
+3. Click **Load Temporary Add-on** and select the XPI.
+4. Open Margin from the Extensions menu and refresh your article tab.
 
-1. Download **margin-0.8.1-firefox-unsigned.xpi**. Keep it as an XPI; do not rename it to a ZIP.
-2. In Firefox, open `about:debugging#/runtime/this-firefox`.
-3. Click **Load Temporary Add-on…**.
-4. Select the downloaded XPI. If your OS/file picker does not offer it, extract a copy and select its `manifest.json` instead.
-5. Open Firefox’s **Extensions** menu → **Margin** → **Open your library**, then refresh your article tab.
+Firefox unloads unsigned add-ons when it closes. Export a full backup before ending a temporary session.
 
-The normal Add-ons Manager rejects this unsigned XPI; use the temporary-add-on screen above. Permanent installation requires a Mozilla-signed package, which is not included yet. Do not disable Firefox’s signature checks. [Mozilla’s signing guide](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/).
-
-Firefox supports local voice recording. Dictation and on-device AI/translation are unavailable when Firefox does not expose their required APIs; the interface explains this. See [browser differences](../CROSS-BROWSER.md).
+[Make your first highlight](GETTING-STARTED.md)
 
 ## Update without losing your library
 
@@ -59,7 +43,7 @@ For updates retaining the same extension ID:
 3. On your extensions page, click **Reload** for Margin. Refresh open website tabs and the library.
 4. Check a saved highlight before deleting the backup.
 
-Do not uninstall Margin to update it. Browser stores are not used in this release, so unpacked downloads do not update automatically. To move between browsers, import a full JSON backup in the destination browser, or connect the same Google account using official configured public downloads.
+Do not uninstall Margin to update it. Unpacked downloads update manually. To move between browsers, import a full JSON backup in the destination browser, or connect the same Google account using official configured public downloads.
 
 ## Permissions
 
@@ -85,8 +69,8 @@ Firefox additionally asks for optional data-transmission consent for configured 
 | A shortcut does nothing                      | Configure conflicts at `chrome://extensions/shortcuts`, `edge://extensions/shortcuts`, or `brave://extensions/shortcuts`. Firefox: `about:addons` → gear menu → Manage Extension Shortcuts.   |
 | Microphone permission is denied              | Check the browser and OS microphone permissions. You can still attach an audio file or type a note.                                                                                           |
 | Dictation/model is unavailable               | Record audio or type instead. Support depends on browser, language, OS, hardware, and installed models.                                                                                       |
-| Translation opens another tab                | This is the default free workflow. Translate there, then paste the result back into Margin and save.                                                                                          |
-| Google sign-in says setup is needed          | Use an official 0.8.1 download. Older public packages and unconfigured development builds need registration; see [Drive help](../GOOGLE-DRIVE.md).                                            |
+| Translation opens another tab                | Choose **Google Translate · free in Margin** to show the result in the dialog, or paste back a result from the website.                                                                       |
+| Google sign-in says setup is needed          | Use a browser download from the latest GitHub release. Older public packages and unconfigured development builds need registration; see [Drive help](../GOOGLE-DRIVE.md).                     |
 | A quote cannot be found on its original page | The page may have changed. The saved quote remains in your library; check the offline copy if you captured it.                                                                                |
 
 Still stuck? [Open a bug report](https://github.com/saeidshirazi/margin-web-highlighter/issues/new/choose) with your browser/version and a public example. Do not upload private notes, tokens, or research backups.

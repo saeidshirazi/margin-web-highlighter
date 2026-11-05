@@ -25,6 +25,12 @@ try {
   if (error.code !== 'ENOENT') throw error;
 }
 const ids = JSON.parse(await readFile('config/browser-ids.json', 'utf8'));
+const relayConfig = JSON.parse(await readFile('config/translation-relay.public.json', 'utf8'));
+const relayUrl =
+  (publicBuild ? relayConfig.url : (process.env.MARGIN_TRANSLATION_RELAY_URL ?? relayConfig.url)) ||
+  '';
+if (relayUrl && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(relayUrl))
+  throw new Error('The translation relay URL must be a Google Apps Script /exec URL.');
 const manifest = browserManifest(baseManifest, target, google, ids, { publicBuild });
 const oauthWebClientId = publicBuild
   ? google.webClientId || ''
@@ -61,6 +67,7 @@ await Promise.all(
       define: {
         __MARGIN_TARGET__: JSON.stringify(target),
         __MARGIN_WEB_CLIENT_ID__: JSON.stringify(oauthWebClientId),
+        __MARGIN_TRANSLATION_RELAY_URL__: JSON.stringify(relayUrl),
       },
       minify: false,
       legalComments: 'eof',

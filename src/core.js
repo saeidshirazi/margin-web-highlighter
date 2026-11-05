@@ -1,6 +1,6 @@
 import { inCollection, collectionPath } from './organization.js';
 export const VERSION = 2;
-export const COLORS = ['#ffe08a', '#a8e6cf', '#9ed5fa', '#d6bafa', '#ffb8ce'];
+const COLORS = ['#ffe08a', '#a8e6cf', '#9ed5fa', '#d6bafa', '#ffb8ce'];
 export const DEFAULT_SETTINGS = {
   colors: COLORS,
   color: COLORS[0],
@@ -50,11 +50,58 @@ export const escapeHtml = (text) =>
     /[&<>"']/g,
     (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[x],
   );
+const searchSentences = new Intl.Segmenter(undefined, { granularity: 'sentence' });
+export function searchMatch(page, highlights, query) {
+  query = query.trim();
+  if (!query) return null;
+  const expression = new RegExp(RegExp.escape(query), 'iu');
+  const match = (kind, text, highlightId) => {
+    const found = expression.exec(text || '');
+    if (!found) return null;
+    const index = found.index;
+    const end = index + found[0].length;
+    const windowStart = Math.max(0, index - 64);
+    const windowEnd = Math.min(text.length, end + 94);
+    const segment = searchSentences
+      .segment(text.slice(windowStart, windowEnd))
+      .containing(index - windowStart);
+    const start = windowStart + segment.index;
+    const finish = Math.max(end, start + segment.segment.length);
+    return {
+      kind,
+      highlightId,
+      before: (start && start === windowStart ? '…' : '') + text.slice(start, index),
+      match: found[0],
+      after: text.slice(end, finish) + (finish < text.length && finish === windowEnd ? '…' : ''),
+      pdfPage:
+        kind === 'text' && page.type === 'pdf'
+          ? text.slice(0, index).split('\n\n').length
+          : undefined,
+    };
+  };
+  for (const highlight of highlights) {
+    const hit =
+      match('highlight', highlight.text, highlight.id) ||
+      match('highlight-note', highlight.note, highlight.id) ||
+      match('highlight', highlight.tags.join(' '), highlight.id);
+    if (hit) return hit;
+  }
+  return (
+    match('page-note', page.note) ||
+    match('text', page.text) ||
+    match('source', [page.title, page.url, ...page.tags].join(' '))
+  );
+}
 export function searchPages(pages, highlights, filters = {}) {
-  const query = (filters.query || '').trim().toLocaleLowerCase();
+  const query = (filters.query || '').trim();
+  const byPage = new Map();
+  for (const highlight of highlights) {
+    if (!byPage.has(highlight.pageId)) byPage.set(highlight.pageId, []);
+    byPage.get(highlight.pageId).push(highlight);
+  }
   return pages
     .filter((page) => {
-      const hs = highlights.filter((h) => h.pageId === page.id);
+      const hs = byPage.get(page.id) || [];
       if (filters.collection && !inCollection(page.collection, filters.collection)) return false;
       if (filters.unfiled && collectionPath(page.collection)) return false;
       if (filters.bookmarked && !page.bookmarked) return false;
@@ -62,20 +109,7 @@ export function searchPages(pages, highlights, filters = {}) {
         return false;
       if (filters.color && !hs.some((h) => h.color === filters.color)) return false;
       if (filters.type && page.type !== filters.type) return false;
-      return (
-        !query ||
-        [
-          page.title,
-          page.url,
-          page.note,
-          page.text,
-          ...page.tags,
-          ...hs.flatMap((h) => [h.text, h.note, ...h.tags]),
-        ]
-          .join(' ')
-          .toLocaleLowerCase()
-          .includes(query)
-      );
+      return !query || !!searchMatch(page, hs, query);
     })
     .sort((a, b) =>
       filters.sort === 'title'

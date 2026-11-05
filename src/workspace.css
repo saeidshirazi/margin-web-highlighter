@@ -673,3 +673,46 @@
   scroll-margin-top: 110px;
   scroll-margin-bottom: 20px;
 }
+.continue-reading {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.continue-reading summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.continue-reading .row {
+  margin-top: 12px;
+}
+.continue-reading .button {
+  align-items: flex-start;
+  flex-direction: column;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.continue-reading small {
+  font-weight: 400;
+}
+.search-excerpt {
+  overflow-wrap: anywhere;
+}
+.search-jump {
+  margin: 0 16px 12px;
+  align-self: flex-start;
+}
+.restore-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.restore-table th,
+.restore-table td {
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.research-answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

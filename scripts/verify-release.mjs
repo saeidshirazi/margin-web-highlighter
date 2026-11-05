@@ -1,4 +1,4 @@
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { unzipSync, strFromU8 } from 'fflate';
 import assert from 'node:assert/strict';
@@ -7,6 +7,7 @@ import path from 'node:path';
 const directory = 'release/public';
 const { version } = JSON.parse(await readFile('package.json', 'utf8'));
 const registration = JSON.parse(await readFile('config/google-oauth.public.json', 'utf8'));
+const relay = JSON.parse(await readFile('config/translation-relay.public.json', 'utf8'));
 const ids = JSON.parse(await readFile('config/browser-ids.json', 'utf8'));
 const publicClient = registration.enabled === true ? registration.webClientId : '';
 const checksums = [];
@@ -35,6 +36,8 @@ for (const suffix of [
   assert.ok(!names.some((file) => file.includes('fixture-bootstrap')));
   if (suffix === 'source.zip') {
     assert.ok(names.includes('README.md') && names.includes('docs/INSTALL.md'));
+    assert.ok(names.includes('config/translation-relay.public.json'));
+    assert.ok(names.includes('scripts/translation-relay.gs'));
     assert.ok(!names.some((file) => /^dist(?:-[^/]+)?\//.test(file)));
   } else {
     const manifest = JSON.parse(strFromU8(archive['manifest.json']));
@@ -47,6 +50,8 @@ for (const suffix of [
       assert.ok(!background.includes(id), 'Public build contains a local OAuth client');
     if (publicClient)
       assert.ok(background.includes(publicClient), 'Public web registration missing');
+    if (relay.url)
+      assert.ok(strFromU8(archive['library.js']).includes(relay.url), 'Public relay URL missing');
     if (suffix.startsWith('firefox')) {
       assert.deepEqual(manifest.background.scripts, ['background.js']);
       assert.ok(manifest.sidebar_action);
@@ -62,5 +67,4 @@ for (const suffix of [
   checksums.push(createHash('sha256').update(bytes).digest('hex') + '  ' + name);
   console.log(`Verified ${name}: ${names.length} files`);
 }
-assert.ok((await readdir(directory)).some((name) => name.endsWith('.zip')));
 await writeFile(path.join(directory, 'SHA256SUMS.txt'), checksums.join('\n') + '\n');

@@ -1,14 +1,5 @@
 export const PRESETS_KEY = 'export-presets';
-export const presetFormats = [
-  'md',
-  'notion',
-  'agent',
-  'html',
-  'csv',
-  'clipboard',
-  'notion-copy',
-  'print',
-];
+const presetFormats = ['md', 'notion', 'agent', 'html', 'csv', 'clipboard', 'notion-copy', 'print'];
 export function collectionPath(value) {
   return String(value || '')
     .normalize('NFC')

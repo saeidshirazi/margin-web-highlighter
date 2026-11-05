@@ -1,6 +1,7 @@
 import { createDriveClient, DRIVE_ORIGIN, googleConfigured, DriveError } from './drive-client.js';
 import { extension, networkPermission } from './platform.js';
 import { authSettings, createGoogleAuth } from './google-auth.js';
+import { mapReadingPositions, mergeReadingPositions, READING_LIMIT } from './reading-state.js';
 import {
   captureState,
   emptyState,
@@ -11,7 +12,7 @@ import {
 } from './sync-state.js';
 
 export const SYNC_ALARM = 'margin-drive-periodic';
-export const DIRTY_ALARM = 'margin-drive-pending';
+const DIRTY_ALARM = 'margin-drive-pending';
 export function createDriveSync({
   db,
   serialize,
@@ -87,8 +88,30 @@ export function createDriveSync({
       controller.signal.throwIfAborted();
       state = mergeStates(latest.state, ...remotes);
       const merged = projectState(state, latest.backup);
+      if (settings.readingPositions === true) {
+        const local = mapReadingPositions(
+          (await db.readingProgress()).entries,
+          latest.backup.pages,
+          true,
+        );
+        const remote = remotes.map((replica) => replica.readingPositions);
+        const kinds = new Map(
+          merged.pages.map((page) => [page.url, page.type === 'pdf' ? 'pdf' : 'reader']),
+        );
+        state.readingPositions = mergeReadingPositions(
+          ...[local, ...remote].map((entries) =>
+            Array.isArray(entries)
+              ? entries
+                  .slice(0, READING_LIMIT)
+                  .filter((entry) => entry && kinds.get(entry.id) === entry.kind)
+              : [],
+          ),
+        );
+      } else delete state.readingPositions;
       // Validation happens before the atomic data + journal transaction.
-      await db.applySyncedBackup(merged, state);
+      const readingChanged = await db.applySyncedBackup(merged, state);
+      if (readingChanged)
+        await chromeApi.storage.local.set({ readingRevision: crypto.randomUUID() });
       if (stableJSON(merged) !== stableJSON({ ...latest.backup, exportedAt: undefined })) {
         try {
           await db.recordResearchChange?.();
@@ -143,10 +166,21 @@ export function createDriveSync({
         await chromeApi.alarms.create(DIRTY_ALARM, { delayInMinutes: 0.5 });
     }
   }
-  async function handle(type) {
+  async function handle(type, payload) {
     if (type === 'drive-status') return status();
     if (type === 'drive-connect') return start(true);
     if (type === 'drive-now') return start();
+    if (type === 'drive-reading-changed') {
+      if ((await config()).readingPositions === true) await schedule();
+      return;
+    }
+    if (type === 'drive-reading-setting') {
+      const settings = await config();
+      if (!settings.connected || running)
+        throw new Error('Wait until Google Drive is connected and idle.');
+      await update({ readingPositions: payload?.enabled === true });
+      return settings.enabled ? start() : status();
+    }
     if (type === 'drive-pause' || type === 'drive-disconnect') {
       controller?.abort();
       await running;

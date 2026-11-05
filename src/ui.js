@@ -24,6 +24,7 @@ const paths = {
   grid: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
   mic: 'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0z M6 10v2a6 6 0 0 0 12 0v-2 M12 18v4 M8 22h8',
   languages: 'M3 5h12 M9 2v3 M6 5c0 6 4 10 9 12 M12 5c0 5-3 9-8 12 M14 21l4-10 4 10 M16 17h4',
+  speaker: 'M3 9v6h4l5 4V5L7 9z M16 9a4 4 0 0 1 0 6 M19 6a8 8 0 0 1 0 12',
 };
 export const icon = (name, size = 18) =>
   name === 'logo'

@@ -2,13 +2,15 @@ import { extension } from './platform.js';
 import * as pdfjs from 'pdfjs-dist';
 import { PDFDocument, PDFHexString } from 'pdf-lib';
 import { api, download } from './api.js';
-import { get } from './db.js';
+import { get, readingProgress } from './db.js';
+import { trackReading } from './reading-progress.js';
 import { fromBase64 } from './pdf-store.js';
 import { icon, esc, toast, applyTheme } from './ui.js';
 import { createAnnotator } from './annotator.js';
 pdfjs.GlobalWorkerOptions.workerSrc = extension.runtime.getURL('pdf.worker.mjs');
 const root = document.querySelector('#app');
-const id = new URL(location.href).searchParams.get('id');
+const params = new URL(location.href).searchParams;
+const id = params.get('id');
 let pdf, source, page, state;
 const controllers = new Map();
 let zoom = 1.25;
@@ -32,36 +34,75 @@ async function init() {
     isEvalSupported: false,
   }).promise;
   root.querySelector('#page-number').max = pdf.numPages;
-  root.querySelector('#page-number').onchange = (e) =>
-    document
-      .querySelector(`[data-pdf-page="${Math.min(pdf.numPages, Math.max(1, +e.target.value))}"]`)
-      ?.scrollIntoView({ behavior: 'smooth' });
+  const number = root.querySelector('#page-number');
+  number.onchange = () => goToPage(Number(number.value));
   root.querySelector('#library').onclick = () => api('open-library', { id });
   root.querySelector('#download').onclick = () => exportPDF().catch((e) => toast(e.message));
   root.querySelector('#zoom').onchange = async (e) => {
+    const current = currentPage();
     zoom = +e.target.value;
     await renderPages();
+    goToPage(current);
   };
   await renderPages();
   if (!page.text) indexText().catch((e) => toast('PDF text could not be indexed: ' + e.message));
-  const highlightId = new URL(location.href).searchParams.get('highlight');
-  if (highlightId) {
-    const h = state.highlights.find((h) => h.id === highlightId);
-    if (h) {
-      document.querySelector(`[data-pdf-page="${h.anchor.page}"]`)?.scrollIntoView();
-    }
-  }
+  const highlight = state.highlights.find(
+    (h) => h.id === params.get('highlight') && h.pageId === id,
+  );
+  const resume = params.has('resume')
+    ? (await readingProgress()).entries.find((entry) => entry.id === id)
+    : null;
+  goToPage(highlight?.anchor.page || Number(params.get('page')) || resume?.position || 1, false);
+  trackReading(
+    id,
+    'pdf',
+    () => {
+      const current = currentPage();
+      if (document.activeElement !== number) number.value = current;
+      return current;
+    },
+    !!resume && !highlight && !Number(params.get('page')),
+  );
   extension.storage.onChanged.addListener((c) => {
     if (c.revision)
       for (const controller of controllers.values()) controller.refresh().catch(() => {});
   });
+}
+function goToPage(position, scrollFirst = true) {
+  const number = Math.min(pdf.numPages, Math.max(1, Math.floor(position) || 1));
+  root.querySelector('#page-number').value = number;
+  if (number > 1 || scrollFirst)
+    root.querySelector(`[data-pdf-page="${number}"]`)?.scrollIntoView();
+}
+function currentPage() {
+  const pages = root.querySelector('#pages').children;
+  if (
+    window.scrollY > 0 &&
+    Math.ceil(window.scrollY + innerHeight) >= document.documentElement.scrollHeight
+  )
+    return pages.length || 1;
+  const readingLine = innerHeight / 3;
+  let low = 0;
+  let high = pages.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (pages[mid].getBoundingClientRect().top <= readingLine) low = mid + 1;
+    else high = mid;
+  }
+  return Math.max(1, low);
 }
 async function indexText() {
   const chunks = [];
   for (let n = 1; n <= Math.min(pdf.numPages, 500); n++) {
     const p = await pdf.getPage(n),
       text = await p.getTextContent();
-    chunks.push(text.items.map((x) => x.str || '').join(' '));
+    chunks.push(
+      text.items
+        .map((x) => x.str || '')
+        .join(' ')
+        .replace(/\s+/gu, ' ')
+        .trim(),
+    );
   }
   const text = chunks.join('\n\n');
   if (text.trim()) await api('save-page', { url: page.url, text });

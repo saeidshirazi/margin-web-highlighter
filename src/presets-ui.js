@@ -11,7 +11,7 @@ const formatLabel = {
   'notion-copy': 'Copy for Notion',
   print: 'Print / PDF',
 };
-export function presetDescription(preset) {
+function presetDescription(preset) {
   return `${formatLabel[preset.format]} · ${preset.scope === 'collection' ? preset.collection : preset.scope === 'all' ? 'Entire library' : 'Current selection / filtered view'}${preset.includeSource ? ' · includes saved source text' : ''}`;
 }
 export function addSavedExports(container, snapshot, visible, run) {

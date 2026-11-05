@@ -6,7 +6,11 @@ import { icon, esc, toast, applyTheme } from './ui.js';
 import { createAnnotator } from './annotator.js';
 import { safeUrl } from './core.js';
 import { findVideoTab, timestampSeconds } from './video.js';
-const id = new URL(location.href).searchParams.get('id');
+import { locateAnchor, textIndex } from './anchor.js';
+import { readingProgress } from './db.js';
+import { trackReading } from './reading-progress.js';
+const params = new URL(location.href).searchParams;
+const id = params.get('id');
 let state, page, controller;
 const root = document.querySelector('#app');
 async function init() {
@@ -152,10 +156,34 @@ async function init() {
     onCapture: (mode, item) => api('open-capture', { pageId: id, highlightId: item?.id, mode }),
   });
   root.querySelector('#quick').onclick = () => controller.action('quick');
-  const highlight = new URL(location.href).searchParams.get('highlight');
-  if (highlight) setTimeout(() => controller.focus(highlight), 500);
-  const repair = new URL(location.href).searchParams.get('repair');
+  const highlight = params.get('highlight');
+  const repair = params.get('repair');
+  const query = params.get('query')?.trim().slice(0, 300);
+  const scrollLimit = () => Math.max(0, document.documentElement.scrollHeight - innerHeight);
+  let resumed = false;
+  if (highlight) {
+    await controller.refresh();
+    controller.focus(highlight);
+  } else if (query) {
+    const index = textIndex(article);
+    const match = new RegExp(RegExp.escape(query), 'iu').exec(index.text);
+    const range = match && locateAnchor(article, { exact: match[0], start: match.index }, index);
+    if (range) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      window.scrollTo(0, window.scrollY + range.getBoundingClientRect().top - innerHeight / 3);
+    } else toast('The matching text could not be located in this reader view.');
+  } else if (params.has('resume')) {
+    const entry = (await readingProgress()).entries.find((entry) => entry.id === id);
+    if (entry) {
+      window.scrollTo(0, scrollLimit() * entry.position);
+      resumed = true;
+    }
+  }
   if (repair) controller.startRepair(repair).catch((e) => toast(e.message));
+  if (page.article || page.text || page.note || page.transcript?.length)
+    trackReading(id, 'reader', () => window.scrollY / (scrollLimit() || 1), resumed);
   extension.storage.onChanged.addListener((c) => {
     if (c.revision) controller.refresh().catch(() => {});
   });

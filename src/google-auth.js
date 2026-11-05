@@ -2,7 +2,7 @@ import { extension, browserTarget, webClientId } from './platform.js';
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const SESSION_KEY = 'marginGoogleWebToken';
 const validClient = (value) => /^\d+-[\w-]+\.apps\.googleusercontent\.com$/.test(value || '');
-export class GoogleAuthError extends Error {
+class GoogleAuthError extends Error {
   constructor(message, kind = 'auth') {
     super(message);
     this.kind = kind;

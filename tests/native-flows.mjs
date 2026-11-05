@@ -1,11 +1,12 @@
 import { chromium, expect } from '@playwright/test';
 import { createServer } from 'node:http';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { browserTarget, extensionFolder, launchOptions } from './chromium-target.mjs';
+import { scratchDirectory } from '../scripts/scratch-directory.mjs';
 const results = path.resolve('test-results', browserTarget, 'native');
-await mkdir('work', { recursive: true });
+await using scratch = await scratchDirectory('test-audio');
 await mkdir(results, { recursive: true });
 const rate = 16000,
   length = rate * 2,
@@ -24,9 +25,9 @@ wav.write('data', 36);
 wav.writeUInt32LE(length * 2, 40);
 for (let i = 0; i < length; i++)
   wav.writeInt16LE(Math.round(Math.sin((i * 440 * 2 * Math.PI) / rate) * 4000), 44 + i * 2);
-const wavPath = path.resolve('work/microphone-tone.wav');
+const wavPath = path.join(scratch.path, 'microphone-tone.wav');
 await writeFile(wavPath, wav);
-const server = createServer((req, res) => {
+await using server = createServer((req, res) => {
   res.setHeader('content-type', 'text/html');
   res.end(
     '<!doctype html><title>Quick capture source</title><main><h1>Research source</h1><p id="quote">A useful source quote to keep with a spoken note.</p></main>',
@@ -34,8 +35,7 @@ const server = createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/read`;
-const profile = await mkdtemp(path.resolve('work/native-flow-'));
-const context = await chromium.launchPersistentContext(profile, {
+const context = await chromium.launchPersistentContext('', {
   ...launchOptions,
   headless: true,
   args: [
@@ -135,13 +135,17 @@ try {
   await expect(capture.locator('#saved-audio audio')).toHaveCount(2);
   backup = await call('backup');
   assert.equal(backup.assets.length, 2);
-  await writeFile('test-results/native-audio-backup.json', JSON.stringify(backup));
+  const backupPath = path.join(scratch.path, 'audio-backup.json');
+  await writeFile(backupPath, JSON.stringify(backup));
   await call('delete-page', { id: page.id });
   await library.reload();
   await library.locator('[data-view=settings]').click();
   const chooser = library.waitForEvent('filechooser');
   await library.locator('[data-action=import]').click();
-  await (await chooser).setFiles(path.resolve('test-results/native-audio-backup.json'));
+  await (await chooser).setFiles(backupPath);
+  await library.getByRole('button', { name: 'Restore backup', exact: true }).click();
+  await library.getByRole('dialog').getByRole('heading', { name: 'Restore complete' }).waitFor();
+  await library.getByRole('button', { name: 'Done', exact: true }).click();
   await expect.poll(async () => (await call('snapshot')).pages.length).toBe(1);
   await expect.poll(async () => (await call('backup')).assets.length).toBe(2);
   const restored = (await call('snapshot')).pages[0];
@@ -176,7 +180,7 @@ try {
       };
     });
   }
-  await expect(library.locator('[name=provider]')).toHaveValue('web');
+  await library.locator('[name=provider]').selectOption('web');
   await library.locator('[name=sourceText]').fill('Hello world');
   await library.locator('[name=target]').fill('fa');
   const [google] = await Promise.all([
@@ -192,7 +196,6 @@ try {
     await google.waitForTimeout(4000);
     googleText = await google.locator('body').innerText();
   } catch {}
-  await writeFile('work/google-translate-live.txt', googleText);
   const liveTranslation = /سلام/.test(googleText);
   if (liveGoogle)
     console.log(
@@ -235,5 +238,4 @@ try {
   throw error;
 } finally {
   await context.close();
-  server.close();
 }

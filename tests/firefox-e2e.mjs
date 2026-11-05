@@ -4,25 +4,20 @@ import { firefox as playwrightFirefox } from '@playwright/test';
 import { zipSync, unzipSync, strFromU8 } from 'fflate';
 import { PDFDocument, StandardFonts, PDFName } from 'pdf-lib';
 import { createServer } from 'node:http';
-import { mkdir, readFile, writeFile, readdir, mkdtemp } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
+import { archiveFiles } from '../scripts/archive-files.mjs';
+import { scratchDirectory } from '../scripts/scratch-directory.mjs';
+
 const results = path.resolve('test-results/firefox');
 await mkdir(results, { recursive: true });
-await mkdir('work', { recursive: true });
-const files = {};
-async function collect(dir, prefix = '') {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) await collect(path.join(dir, entry.name), prefix + entry.name + '/');
-    else files[prefix + entry.name] = new Uint8Array(await readFile(path.join(dir, entry.name)));
-  }
-}
-await collect('dist-firefox');
-const addonPath = path.resolve('work/firefox-e2e.xpi');
-await writeFile(addonPath, zipSync(files));
+await using scratch = await scratchDirectory('test-firefox');
+const addonPath = path.join(scratch.path, 'margin.xpi');
+await writeFile(addonPath, zipSync(await archiveFiles('dist-firefox')));
 let revised = false;
-const server = createServer((req, res) => {
+await using server = createServer((req, res) => {
   res.setHeader('Content-Type', 'text/html');
   res.end(
     `<!doctype html><title>Firefox research source</title><body style="font:20px/1.8 Georgia;max-width:760px;margin:60px auto"><article><h1>Research across browsers</h1>${revised ? '<p>A new introduction inserted later.</p>' : ''}<p id="passage">Careful reading matters. <strong>Small observations become lasting ideas.</strong> Save a thought while you read.</p><p id="other">Voice notes and highlights belong together.</p>${'<p>Read slowly, notice connections, and preserve the original source.</p>'.repeat(10)}</article></body>`,
@@ -34,7 +29,6 @@ const url = `http://127.0.0.1:${server.address().port}/article`,
 const base = 'moz-extension://' + uuid + '/',
   checks = [],
   errors = [];
-const profile = await mkdtemp(path.resolve('work/firefox-profile-'));
 const options = new firefox.Options()
   .setBinary(process.env.MARGIN_FIREFOX_BINARY || playwrightFirefox.executablePath())
   .addArguments('-headless')
@@ -43,7 +37,7 @@ const options = new firefox.Options()
     JSON.stringify({ 'margin-local-highlighter@margin.local': uuid }),
   )
   .setPreference('browser.download.folderList', 2)
-  .setPreference('browser.download.dir', results)
+  .setPreference('browser.download.dir', scratch.path)
   .setPreference('browser.download.useDownloadDir', true)
   .setPreference('browser.download.alwaysOpenPanel', false)
   .setPreference(
@@ -60,7 +54,6 @@ const service = new firefox.ServiceBuilder().setEnvironment({
   ...process.env,
   MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: '1',
 });
-options.setProfile(profile);
 const driver = await new Builder()
   .forBrowser('firefox')
   .setFirefoxOptions(options)
@@ -132,13 +125,13 @@ async function screenshot(name) {
 async function downloaded(before, suffix) {
   let found;
   await poll(async () => {
-    const names = await readdir(results);
+    const names = await readdir(scratch.path);
     found = names.find(
       (name) => !before.has(name) && name.endsWith(suffix) && !names.includes(name + '.part'),
     );
-    return !!found && (await readFile(path.join(results, found))).length > 0;
+    return !!found && (await readFile(path.join(scratch.path, found))).length > 0;
   }, 'Download ' + suffix);
-  return path.join(results, found);
+  return path.join(scratch.path, found);
 }
 async function select(css) {
   return driver.executeScript((selector) => {
@@ -205,6 +198,35 @@ try {
   const source = await driver.getWindowHandle();
   await driver.get(url);
   await element('[data-margin-ui]');
+  const beforeTranslate = new Set(await driver.getAllWindowHandles());
+  const selectionPoint = await select('#passage strong');
+  await driver.sleep(150);
+  await driver
+    .actions()
+    .move({
+      origin: 'viewport',
+      x: Math.round(selectionPoint.x + 237),
+      y: Math.round(selectionPoint.y),
+    })
+    .click()
+    .perform();
+  let selectionTranslation;
+  await poll(async () => {
+    selectionTranslation = (await driver.getAllWindowHandles()).find(
+      (handle) => !beforeTranslate.has(handle),
+    );
+    return !!selectionTranslation;
+  }, 'Selection translation opened');
+  await driver.switchTo().window(selectionTranslation);
+  assert.equal(
+    await (await element('[name=sourceText]')).getAttribute('value'),
+    'Small observations become lasting ideas.',
+  );
+  assert.equal(await (await element('[name=target]')).getAttribute('value'), 'fa');
+  assert.equal((await api('snapshot')).highlights.length, 0);
+  await driver.close();
+  await driver.switchTo().window(source);
+  pass('website selection opens the prefilled translator without saving a highlight');
   await highlight('#passage strong');
   await poll(
     () => driver.executeScript(() => CSS.highlights.size === 1),
@@ -333,7 +355,7 @@ try {
   assert.equal(firefoxPreset.format, 'agent');
   await click('dialog[open] .modal-head [data-close]');
   await element('[data-run-preset]');
-  const presetBefore = new Set(await readdir(results));
+  const presetBefore = new Set(await readdir(scratch.path));
   await click('[data-run-preset]');
   const presetZip = unzipSync(
     new Uint8Array(await readFile(await downloaded(presetBefore, '.zip'))),
@@ -396,6 +418,7 @@ try {
   await driver.switchTo().window(library);
   await driver.get(base + 'library.html#page=' + page.id);
   await click('.drawer [data-action=translate-page]');
+  await click('[name=provider] option[value=web]');
   await fill('[name=sourceText]', 'Hello world');
   await fill('[name=target]', 'fa');
   await driver.executeScript(() => {
@@ -428,7 +451,8 @@ try {
     size: 20,
     font: await pdf.embedFont(StandardFonts.Helvetica),
   });
-  const pdfPath = path.join(results, 'fixture.pdf');
+  pdf.addPage().drawText('FirefoxPdfNeedle is on page two.', { x: 60, y: 700, size: 20 });
+  const pdfPath = path.join(scratch.path, 'fixture.pdf');
   await writeFile(pdfPath, await pdf.save());
   await click('[data-action=add]');
   await click('dialog [data-action=pdf]');
@@ -441,10 +465,10 @@ try {
     return !!viewer;
   });
   await driver.switchTo().window(viewer);
-  await element('.textLayer span');
-  await highlight('.textLayer span');
+  await element('[data-pdf-page="1"] .textLayer span');
+  await highlight('[data-pdf-page="1"] .textLayer span');
   await poll(() => driver.executeScript(() => CSS.highlights.size === 1), 'PDF quote highlight');
-  const beforePDFDownload = new Set(await readdir(results));
+  const beforePDFDownload = new Set(await readdir(scratch.path));
   await click('#download');
   const exported = await downloaded(beforePDFDownload, '.pdf');
   const annotated = await PDFDocument.load(await readFile(exported));
@@ -458,14 +482,41 @@ try {
   pass('native PDF.js rendering, text selection, highlighting and standard annotated PDF export');
 
   await driver.switchTo().window(library);
+  await poll(async () =>
+    (await api('snapshot')).pages.some((page) => page.text?.includes('FirefoxPdfNeedle')),
+  );
   await driver.navigate().refresh();
+  await fill('#search', 'firefoxpdfneedle');
+  assert.equal(await text('.search-excerpt mark'), 'FirefoxPdfNeedle');
+  const beforePdfJump = new Set(await driver.getAllWindowHandles());
+  await click('[data-search-jump]');
+  let pdfJump;
+  await poll(async () => {
+    pdfJump = (await driver.getAllWindowHandles()).find((handle) => !beforePdfJump.has(handle));
+    return !!pdfJump;
+  });
+  await driver.switchTo().window(pdfJump);
+  await element('[data-pdf-page="2"] canvas');
+  assert.equal(await (await element('#page-number')).getAttribute('value'), '2');
+  await driver.sleep(350);
+  await driver.close();
+  await driver.switchTo().window(library);
+  await driver.get(base + 'library.html');
+  const pdfResume = await element('[data-continue-reading] a[href*="pdf.html"]');
+  assert.match(await pdfResume.getText(), /PDF page 2/);
+  await driver.get(await pdfResume.getAttribute('href'));
+  await element('[data-pdf-page="2"] canvas');
+  assert.equal(await (await element('#page-number')).getAttribute('value'), '2');
+  await driver.get(base + 'library.html');
+  pass('Firefox PDF text search jumps to the matching page and resumes there');
+
   await click('[data-action=import-markdown]');
   await fill('dialog [name=markdown]', '# Agent note\n\nA source imported from an AI agent.');
   await click('dialog[open] [type=submit]');
   await poll(async () => (await api('snapshot')).pages.length === 3, 'Markdown import');
   await click('.topbar [data-action=export]');
   await (await element('dialog select[name=format]')).sendKeys('AI-agent research bundle (.zip)');
-  let beforeDownload = new Set(await readdir(results));
+  let beforeDownload = new Set(await readdir(scratch.path));
   await click('dialog[open] [type=submit]');
   const bundle = unzipSync(
     new Uint8Array(await readFile(await downloaded(beforeDownload, '.zip'))),
@@ -486,6 +537,87 @@ try {
   assert.equal(restored.assets.length, 2);
   assert.equal(restored.highlights.length, backup.highlights.length);
   pass('complete PDF/audio JSON backup, cascading deletion, atomic restore and repeat-safe import');
+
+  const readingText = Array.from(
+    { length: 65 },
+    (_, index) => `Reading paragraph ${index}. Notes preserve the context of an observation.`,
+  ).join('\n\n');
+  const readingSource = await api('save-page', {
+    url: 'https://example.test/firefox-reading',
+    title: 'Firefox reading position',
+    text: readingText,
+  });
+  await api('add-highlight', {
+    pageId: readingSource.id,
+    text: 'Notes preserve the context of an observation.',
+    anchor: { exact: 'Notes preserve the context of an observation.' },
+    note: 'FirefoxNeedle',
+    color: '#ffe08a',
+  });
+  await driver.get(base + 'library.html');
+  await fill('#search', 'firefoxneedle');
+  assert.equal(await text('.search-excerpt mark'), 'FirefoxNeedle');
+  await click('[data-search-jump]');
+  await click('[data-highlight-points]');
+  assert.match(await text('dialog li'), /Notes preserve/);
+  await click('dialog button[type=submit]');
+  await poll(
+    async () => !(await driver.findElements(By.css('dialog[open]'))).length,
+    'Saved key points',
+  );
+  await click('[data-explain-highlight]');
+  assert.match(await text('[data-explanation-status]'), /unavailable/);
+  await click('dialog .modal-foot [data-close]');
+
+  await driver.get(base + 'reader.html?id=' + readingSource.id);
+  await element('#article');
+  await driver.executeScript(() => window.scrollTo(0, 650));
+  await poll(() => driver.executeScript(() => window.scrollY === 650), 'Reader scrolled');
+  await driver.sleep(350);
+  await driver.get(base + 'library.html');
+  assert.match(await text('[data-continue-reading] a'), /Firefox reading position/);
+  const resume = await (await element('[data-continue-reading] a')).getAttribute('href');
+  await driver.get(resume);
+  await poll(
+    () => driver.executeScript(() => Math.abs(window.scrollY - 650) < 8),
+    'Resumed reader position',
+  );
+
+  await driver.get(base + 'library.html#settings');
+  const incoming = await api('backup');
+  incoming.pages.push({
+    id: 'firefox-incoming',
+    url: 'https://example.test/firefox-incoming',
+    title: 'New restore source',
+  });
+  await driver.executeScript((contents) => {
+    const original = window.HTMLInputElement.prototype.click;
+    window.HTMLInputElement.prototype.click = function () {
+      if (this.type !== 'file') return original.call(this);
+      window.HTMLInputElement.prototype.click = original;
+      const transfer = new window.DataTransfer();
+      transfer.items.add(new window.File([contents], 'backup.json', { type: 'application/json' }));
+      this.files = transfer.files;
+      this.dispatchEvent(new window.Event('change'));
+    };
+  }, JSON.stringify(incoming));
+  await click('[data-action=import]');
+  assert.equal(await text('dialog h2'), 'Review backup restore');
+  assert.equal((await api('snapshot')).pages.length, 4);
+  await click('dialog button[type=submit]');
+  await poll(
+    () =>
+      driver.executeScript(
+        () => document.querySelector('dialog[open] h2')?.textContent === 'Restore complete',
+      ),
+    'Restore report',
+  );
+  assert.equal((await api('snapshot')).pages.length, 5);
+  await click('dialog button[type=submit]');
+  await driver.get(base + 'library.html');
+  pass(
+    'offline key points, explanation availability, search result and reader resume, backup preview and restore report',
+  );
 
   // A genuine WebDriver pointer click grants the same Firefox user gesture as the popup.
   await driver.executeScript(() => {
@@ -573,5 +705,4 @@ try {
   throw error;
 } finally {
   await driver.quit();
-  await new Promise((resolve) => server.close(resolve));
 }

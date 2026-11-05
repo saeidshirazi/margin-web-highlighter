@@ -29,6 +29,7 @@ jobs:
       - run: npm run test:e2e
       - run: npm run test:experience
       - run: npm run test:organization
+      - run: npm run test:research
       - run: npm run test:native
       - run: npm run test:drive
       - run: npm run build:edge && npm run build:firefox

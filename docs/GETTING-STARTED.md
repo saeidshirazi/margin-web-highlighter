@@ -25,6 +25,12 @@ On the original article, choose **Margin → Save for offline reading**. In the 
 
 Choose **Add to library → PDF**, select a local file or provide a remote URL, then highlight text in Margin’s viewer. **Annotated PDF** downloads the original PDF with standard highlight annotations and notes. Local PDFs work offline; remote URLs need network access and permission. Each PDF can be up to 50 MB. Image-only/scanned and password-protected PDFs are not supported.
 
+## Pronounce or translate selected text
+
+Select a word or short phrase on a web page, in the offline reader, or in Margin’s PDF viewer. Click the **speaker** beside the highlight colors. Margin detects the language on-device and pronounces the selection with a matching installed voice. Short or ambiguous words may use the page language, nearby text, or your voice preference. Choose **American English (US)** or **British English (UK)** in the voice menu when those voices are installed.
+
+Click the **translation** icon to open the selection in Margin’s translation window. It starts with automatic source detection and your default output language. Choose your provider and start the translation when you are ready. These actions leave the selection unsaved.
+
 ## Record a voice note
 
 1. On the original page, choose **Margin → Record voice / dictate**, or use **Quick note / audio** on a saved source.
@@ -42,7 +48,9 @@ The capture tab stays open while you highlight the original source in another ta
 
 Choose **Translate** on a saved source or quote. Leave **From → Detect automatically**, choose a target such as `fa` for Persian, and optionally save it as your default. The default provider opens Google Translate with the selected text. Copy the translated result back into Margin’s result field, then save it to your note. Your original note stays intact. Right-to-left output is supported.
 
-Local translation requires a supported browser/model/language pair. Google Cloud Translation is an optional bring-your-own-key service that may charge your project; the default website workflow needs no key.
+Chrome’s on-device translator requires a supported browser and language pair. Google Cloud Translation is an optional bring-your-own-key service that may charge your project. The website workflow needs no key.
+
+If your build includes **Google Translate · free in Margin**, you can translate directly in the window with the shared Apps Script quota. For offline Persian translation, use **LibreTranslate · runs on this device**. You can also enable it as a fallback when the Google quota fills up. See [Free translation setup](FREE-TRANSLATION.md).
 
 ## Review and export
 
@@ -78,3 +86,11 @@ A quiet reminder appears in the library after **7 days or 50 research changes on
 In Settings, choose 7/14/30 days or 50/100/250 changes, disable reminders, and see the last full backup download request. Markdown/Notion/agent exports do not count as full backups. Changes made while a backup is being prepared remain pending. Reminder counters and tutorial progress never travel in research backups or Drive sync.
 
 The browser cannot confirm that you kept the downloaded file or accepted its save prompt. Check your downloads before relying on it. Imported research, deletion markers and independent exported files follow the existing backup/sync rules. No new notifications, account requirements or permissions were added.
+
+## Research tools
+
+- **Key points.** Open a source or highlight in the library and choose **Key points**. Margin selects up to four excerpts from saved text on your device. Use **Save to note** to append them to the existing note.
+- **Explain.** Choose **Explain** beside a highlight, then **Generate explanation**. A compatible on-device model uses the quote and nearby saved text. The current local model configuration uses English. Chrome may download the model on first use. Review the response before saving it.
+- **Continue reading.** Open an offline article or PDF and scroll or change pages. The library’s **Continue reading** section reopens recent sources at their saved position. Click its heading to collapse or expand it. To sync positions, connect the same Google account and enable **Sync reading positions** under **Settings & backups → Connect your Google account** in each browser. The most recently saved position wins for each source. Use **Sync now** before switching browsers to transfer a recent change right away. The collapsed state stays local.
+- **Search.** Type a phrase in the library search box to see it in context. The result’s button takes you to the matching annotation, note, offline text, or indexed PDF page. PDF text search covers up to the first 500 indexed pages.
+- **Restore a backup.** In **Settings & backups**, choose **Import backup** and select a JSON file. Unlock encrypted files with their password. Review the added, merged, and skipped counts before clicking **Restore backup**. Review the final report for local details that were kept and presets that were renamed.

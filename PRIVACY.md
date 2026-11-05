@@ -1,6 +1,6 @@
 # Margin privacy policy
 
-Effective date: November 5, 2026. Applies to version 0.8.1.
+Effective date: November 5, 2026. Applies to versions 0.8.1 through 0.8.3.
 
 Chrome, Edge, Brave, and Firefox store research in their own extension databases. Official public Chrome, Edge, Brave and Firefox packages use browser-managed web OAuth with a verified random state and exact callback; access tokens are cached only in extension session storage until expiry. Legacy configured Chrome development builds can still use Chrome’s native Google token service. Public OAuth client IDs and public identity keys are intentionally published; they grant no account access without Google consent. No client secret is included. Firefox requests optional website-content, browsing-activity, and identifying-information transmission consent for Drive/in-app Google translation; voice recordings fall within identifying information. No optional transmission is required for local research. See [CROSS-BROWSER.md](CROSS-BROWSER.md) for API differences and installation.
 
@@ -32,9 +32,13 @@ An explicit **Record voice** action requests microphone access and records local
 
 Saved audio can be played, downloaded, or deleted. Deleting a page deletes its audio. Recordings already exported in backups/downloads must be removed separately if desired. Binary audio is excluded from Markdown, HTML, Notion, and agent research exports.
 
-The default translation workflow is an explicit Google Translate website handoff. Its text is included in the URL and can enter browser history. Pasting the result back saves it locally. This replaces the misleading assumption that local Persian translation was available. Optional in-app Google Cloud/local translation and online speech retain their explicit provider/permission requirements.
+The Google Translate website option opens a separate tab. Its text is included in the URL and can enter browser history. Pasting the result back saves it locally.
 
 Read-aloud uses installed browser/system voices. Online voices are hidden unless you allow them, and those providers' audio/text-processing policies apply when selected. Core highlighting, quick typed notes, and local recording do not require an account or API key.
+
+In builds with selection pronunciation, the selection toolbar detects language on-device using the selection and, when needed, nearby text. Pronunciation uses installed on-device voices. Opening a selection in Margin's translation window passes the text through temporary browser-session storage and removes the draft when the window reads it. No highlight or research record is created. Text is sent to a provider when you explicitly start an online translation.
+
+In builds configured with the free Google relay, clicking Translate sends the displayed text and language choices to the project's Google Apps Script web app. The script calls Google's language service and stores only counters for its quota. Margin caches up to 64 recent results on this device and reuses them for up to 24 hours. The cache is excluded from backups and sync and can be cleared in the translation window. The optional LibreTranslate provider sends the selection to the service running at `127.0.0.1:5000` on the user's device. Its automatic quota fallback is off by default and requires the user's opt-in.
 
 ## Optional speech and translation
 
@@ -70,6 +74,8 @@ YouTube videos remain on the original YouTube website. Capturing an already-visi
 
 ## Backups and deletion
 
+Continue reading keeps up to eight recent source IDs, positions, and update times in this browser profile. If you turn on **Sync reading positions** in Google Drive settings, Margin shares the corresponding source URLs, scroll percentages or PDF page numbers, and update times through its Drive app-data folder. Turn it on in each browser where you want to share positions. Turning it off stops sharing and receiving on that browser. Positions already copied elsewhere follow the usual sync retention rules. The collapsed setting stays local, and reading positions stay out of JSON backups. Key points use saved text on the device. Explain sends the quote and nearby saved text to a compatible on-device model. Saving the result appends it to the note, where it follows the usual export and sync rules.
+
 JSON backups contain your research, including source URLs and PDF attachments. Exports are plaintext unless you choose password-encrypted JSON. Local IndexedDB data itself is not encrypted by Margin; protect your device and Chrome profile. The encryption password is used in memory and is never saved. There is no password recovery service.
 
 Delete individual highlights, cards, or pages in the library. Deleting a page removes its annotations, linked flashcards, and stored PDF attachment in one transaction. Uninstalling the extension removes its local database. Keep a backup before uninstalling. Copies exported to files must be deleted separately if desired.
@@ -86,6 +92,6 @@ Delete individual highlights, cards, or pages in the library. Deleting a page re
 | `identity`                               | Google OAuth sign-in and cached tokens for optional Drive sync                                                |
 | `alarms`                                 | Schedule pending/periodic Drive synchronization while Chrome runs                                             |
 | HTTP/HTTPS/file content-script matches   | Display the selection toolbar and restore highlights on pages; file access is controlled separately by Chrome |
-| Optional per-site HTTP/HTTPS host access | Requested remote PDF downloads, explicit Google Cloud translation, or consented Google Drive API requests     |
+| Optional per-site HTTP/HTTPS host access | Requested remote PDF downloads, optional translation providers, or consented Google Drive API requests        |
 
 There are no `history`, `cookies`, `webRequest`, or broad `tabs` permissions. The extension does not read browsing history. A future maintainer can publish this policy with their release and provide contact information through the repository's issue/security reporting channels.

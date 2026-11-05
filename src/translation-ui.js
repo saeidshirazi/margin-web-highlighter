@@ -3,6 +3,14 @@ import { dialog, esc, toast } from './ui.js';
 import { api } from './api.js';
 import { LANGUAGES, languageCode, languageName, direction } from './languages.js';
 import { localTranslationSupport } from './local-language-support.js';
+import { clearTranslationCache } from './db.js';
+import {
+  freeGoogleTranslate,
+  libreTranslate,
+  libreTranslateOrigin,
+  translationRelayOrigins,
+  translationRelayUrl,
+} from './translation-providers.js';
 import {
   localTranslate,
   googleTranslate,
@@ -11,7 +19,11 @@ import {
 } from './translation.js';
 
 export async function openTranslation({ text = '', onSave } = {}) {
-  const settings = await api('preferences');
+  const [settings, device, session] = await Promise.all([
+    api('preferences'),
+    extension.storage.local.get('libreTranslationFallback'),
+    extension.storage.session.get('googleTranslationKey'),
+  ]);
   let result,
     controller,
     requestVersion = 0;
@@ -20,20 +32,55 @@ export async function openTranslation({ text = '', onSave } = {}) {
   ).join('');
   const modal = dialog({
     title: 'Translate your research',
-    submit: 'Save translation to note',
+    submit: onSave ? 'Save translation to note' : 'Done',
     body: `<p class="muted small">Detect the source language, choose an output language, and keep the original text.</p><label class="field">Text to translate<textarea name="sourceText" rows="5" dir="auto">${esc(text)}</textarea></label><div class="language-pair"><label class="field">From<select name="source"><option value="auto">Detect automatically</option>${options}</select></label><label class="field">To<input name="target" list="translation-languages" aria-label="Translation output language" value="${esc(settings.translationTarget)}"><datalist id="translation-languages">${options}</datalist></label></div><div class="row wrap"><label class="small"><input type="checkbox" name="remember"> Use this output language by default</label><button type="button" data-save-language>Save language preference</button></div><label class="field" style="margin-top:18px">Translation provider<select name="provider"><option value="web">Google Translate website · no key · opens a tab</option><option value="local">On-device · browser language packs</option><option value="google">Google Cloud Translation · your API key</option></select></label><p data-local-help class="muted small">Private local processing after language-pack setup. Local support depends on your browser and language. Use the website option if unavailable.</p><div data-cloud hidden><label class="field">Google Cloud Translation API key<input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="Your key · never included in backups"></label><label class="small"><input type="checkbox" name="rememberKey" checked> Keep key until this browser session ends</label><label class="cloud-consent"><input type="checkbox" name="cloudConsent"> Send only the text above to Google Cloud for this translation. Google may charge my project.</label></div><div class="row wrap"><button type="button" data-translate class="primary">Translate</button><button type="button" data-cancel-translation hidden>Cancel translation</button><button type="button" data-google-web>Open Google Translate</button></div><p data-translation-status class="muted small" role="status" aria-live="polite"></p><label class="field">Translation<textarea name="result" rows="6" readonly dir="auto" placeholder="Your translation will appear here."></textarea></label>`,
     onSubmit: async () => {
+      if (!onSave) return;
       if (!result) throw new Error('Translate the current text before saving.');
-      if (onSave) await onSave(result);
-      else throw new Error('Open translation from a saved page or highlight to save it as a note.');
+      await onSave(result);
       toast('Translation saved to your note');
     },
   });
   modal.classList.add('translation-modal');
   const query = (s) => modal.querySelector(s);
-  query('[type=submit]').disabled = true;
+  const providerSelect = query('[name=provider]');
+  providerSelect.add(new Option('LibreTranslate · runs on this device', 'libre'), 2);
+  if (translationRelayUrl) {
+    providerSelect.add(new Option('Google Translate · free in Margin', 'relay'), 0);
+    providerSelect.value = 'relay';
+  }
+  query('[data-local-help]').insertAdjacentHTML(
+    'beforebegin',
+    `<div data-relay-help hidden><p class="muted small">Uses a shared free Google quota. Clicking Translate sends the displayed text and language choices to Google. Margin reuses recent results on this device.</p><label class="small"><input type="checkbox" name="libreFallback"> Use my local LibreTranslate when Google reaches its quota</label><button type="button" data-clear-translation-cache>Clear cached translations</button></div><p class="muted small" data-libre-help hidden>Run LibreTranslate on this device at 127.0.0.1:5000 with the languages you need. <a href="https://docs.libretranslate.com/guides/installation/" target="_blank" rel="noreferrer">LibreTranslate setup</a></p>`,
+  );
+  const fallback = query('[name=libreFallback]');
+  const librePermission = { origins: [libreTranslateOrigin] };
+  fallback.checked = device.libreTranslationFallback === true;
+  query('[type=submit]').disabled = !!onSave;
   const status = (text) => {
     query('[data-translation-status]').textContent = text;
+  };
+  fallback.onchange = async () => {
+    const enabled = fallback.checked;
+    fallback.disabled = true;
+    try {
+      if (enabled && !(await extension.permissions.request(librePermission)))
+        throw new Error('Allow access to local LibreTranslate to enable fallback.');
+      await extension.storage.local.set({ libreTranslationFallback: enabled });
+    } catch (error) {
+      fallback.checked = !enabled;
+      status(error.message);
+    } finally {
+      fallback.disabled = false;
+    }
+  };
+  query('[data-clear-translation-cache]').onclick = async () => {
+    try {
+      await clearTranslationCache();
+      status('Cached translations cleared from this device.');
+    } catch (error) {
+      status(error.message);
+    }
   };
   const checkLocalLanguages = () => {
     if (query('[name=provider]').value !== 'local') return;
@@ -49,14 +96,13 @@ export async function openTranslation({ text = '', onSave } = {}) {
       status(error.message);
     }
   };
-  const saved = (await extension.storage.session.get('googleTranslationKey')).googleTranslationKey;
-  if (saved && modal.isConnected) query('[name=key]').value = saved;
+  if (session.googleTranslationKey) query('[name=key]').value = session.googleTranslationKey;
   const invalidate = () => {
     requestVersion++;
     controller?.abort();
     result = undefined;
     query('[name=result]').value = '';
-    query('[type=submit]').disabled = true;
+    query('[type=submit]').disabled = !!onSave;
     query('[data-translate]').disabled = false;
     query('[data-cancel-translation]').hidden = true;
     status('');
@@ -78,8 +124,8 @@ export async function openTranslation({ text = '', onSave } = {}) {
     query('[data-google-web]').hidden = provider === 'web';
     query('[data-cloud]').hidden = !cloud;
     query('[data-local-help]').hidden = provider !== 'local';
-    status('');
-    checkLocalLanguages();
+    query('[data-relay-help]').hidden = provider !== 'relay';
+    query('[data-libre-help]').hidden = provider !== 'libre';
   };
   query('[name=result]').oninput = () => {
     if (query('[name=provider]').value !== 'web') return;
@@ -93,7 +139,7 @@ export async function openTranslation({ text = '', onSave } = {}) {
             provider: 'Google Translate (pasted)',
           }
         : undefined;
-      query('[type=submit]').disabled = !result || !onSave;
+      query('[type=submit]').disabled = !!onSave && !result;
     } catch (e) {
       status(e.message);
     }
@@ -173,6 +219,44 @@ export async function openTranslation({ text = '', onSave } = {}) {
           apiKey: key,
           signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(30000)]),
         });
+      } else if (provider === 'relay') {
+        const granted = await extension.permissions.request(
+          networkPermission(translationRelayOrigins, ['websiteContent']),
+        );
+        if (!granted) throw new Error('Google translation access was not granted.');
+        if (version !== requestVersion) return;
+        status('Translating with the free Google service…');
+        completed = await freeGoogleTranslate(
+          {
+            ...values,
+            signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(30000)]),
+          },
+          {
+            fallback:
+              fallback.checked && !fallback.disabled
+                ? async (input) => {
+                    if (!(await extension.permissions.contains(librePermission)))
+                      throw new Error(
+                        'Google’s quota is full. Choose LibreTranslate and allow local access to continue.',
+                      );
+                    input.signal.throwIfAborted();
+                    status(
+                      'Google’s quota is full. Translating with LibreTranslate on this device…',
+                    );
+                    return libreTranslate(input);
+                  }
+                : undefined,
+          },
+        );
+      } else if (provider === 'libre') {
+        const granted = await extension.permissions.request(librePermission);
+        if (!granted) throw new Error('Local LibreTranslate access was not granted.');
+        if (version !== requestVersion) return;
+        status('Translating with LibreTranslate on this device…');
+        completed = await libreTranslate({
+          ...values,
+          signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(30000)]),
+        });
       } else
         completed = await localTranslate({
           ...values,
@@ -184,18 +268,22 @@ export async function openTranslation({ text = '', onSave } = {}) {
       if (version !== requestVersion || !modal.isConnected) return;
       if (query('[name=remember]').checked)
         await api('settings', { translationTarget: values.target });
+      if (version !== requestVersion || !modal.isConnected) return;
       result = completed;
       query('[name=result]').value = result.text;
       query('[name=result]').dir = direction(result.target);
       query('[name=result]').scrollIntoView({ block: 'nearest' });
-      query('[type=submit]').disabled = !onSave;
+      query('[type=submit]').disabled = false;
       status(
-        (values.source === 'auto' ? 'Detected source: ' : 'Source: ') +
-          languageName(result.source) +
+        (result.source === 'auto'
+          ? 'Automatic source detection'
+          : (values.source === 'auto' ? 'Detected source: ' : 'Source: ') +
+            languageName(result.source)) +
           ' → ' +
           languageName(result.target) +
           ' · ' +
-          result.provider,
+          result.provider +
+          (result.cached ? ' · local cache' : ''),
       );
     } catch (e) {
       if (version === requestVersion && modal.isConnected) {

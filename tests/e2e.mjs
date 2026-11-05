@@ -1,6 +1,6 @@
 import { chromium, expect } from '@playwright/test';
 import { createServer } from 'node:http';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { PDFDocument, StandardFonts, PDFName } from 'pdf-lib';
@@ -8,10 +8,8 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { browserTarget, extensionFolder, launchOptions } from './chromium-target.mjs';
 const results = path.resolve('test-results', browserTarget);
 await mkdir(results, { recursive: true });
-await mkdir('work', { recursive: true });
-const profile = await mkdtemp(path.resolve('work/e2e-profile-'));
 let revised = false;
-const server = createServer((req, res) => {
+await using server = createServer((req, res) => {
   res.setHeader('content-type', 'text/html');
   res.end(
     `<!doctype html><html><head><title>The art of paying attention</title></head><body style="font:20px/1.8 Georgia;max-width:760px;margin:70px auto"><article><h1>The art of paying attention</h1>${revised ? '<p>An introduction added after the original annotation.</p>' : ''}<p id="passage">A good reader notices what matters. <strong>Small observations become lasting ideas.</strong> Keep a little room for curiosity.</p>${'<p>Reading slowly gives us time to question our first impressions and discover connections. A personal library grows one idea at a time.</p>'.repeat(8)}</article></body></html>`,
@@ -19,7 +17,7 @@ const server = createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/article`;
-const context = await chromium.launchPersistentContext(profile, {
+const context = await chromium.launchPersistentContext('', {
   ...launchOptions,
   headless: true,
   args: [
@@ -61,8 +59,16 @@ try {
       return { x: rect.left, y: rect.bottom };
     }, selector);
   let rect = await select(article, '#passage strong');
-  await article.waitForTimeout(120);
-  await article.mouse.click(Math.max(10, Math.min(rect.x, 1110)) + 24, rect.y + 33);
+  const firstSwatch = { x: Math.max(10, Math.min(rect.x, 1110)) + 24, y: rect.y + 33 };
+  await expect
+    .poll(() =>
+      article.evaluate(
+        ({ x, y }) => !!document.elementFromPoint(x, y)?.matches('[data-margin-ui]'),
+        firstSwatch,
+      ),
+    )
+    .toBe(true);
+  await article.mouse.click(firstSwatch.x, firstSwatch.y);
   await expect.poll(() => article.evaluate(() => CSS.highlights.size)).toBe(1);
   await article.screenshot({ path: path.join(results, 'highlight-on-page.png') });
   const snap = () =>
@@ -244,11 +250,17 @@ try {
   const chooser = library.waitForEvent('filechooser');
   await library.locator('[data-action=import]').click();
   await (await chooser).setFiles(path.join(results, 'backup.json'));
+  await library.getByRole('button', { name: 'Restore backup', exact: true }).click();
+  await library.getByRole('dialog').getByRole('heading', { name: 'Restore complete' }).waitFor();
+  await library.getByRole('button', { name: 'Done', exact: true }).click();
   await expect.poll(async () => (await snap()).pages.length).toBe(2);
   await expect.poll(async () => (await snap()).highlights.length).toBe(4);
   const chooser2 = library.waitForEvent('filechooser');
   await library.locator('[data-action=import]').click();
   await (await chooser2).setFiles(path.join(results, 'backup.json'));
+  await library.getByRole('button', { name: 'Restore backup', exact: true }).click();
+  await library.getByRole('dialog').getByRole('heading', { name: 'Restore complete' }).waitFor();
+  await library.getByRole('button', { name: 'Done', exact: true }).click();
   await library.waitForTimeout(600);
   assert.equal((await snap()).highlights.length, 4);
   assert.equal((await snap()).cards.length, 1);
@@ -673,5 +685,4 @@ try {
   throw e;
 } finally {
   await context.close();
-  server.close();
 }

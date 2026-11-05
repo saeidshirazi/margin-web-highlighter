@@ -4,13 +4,26 @@ import { icon, esc, toast, applyTheme } from './ui.js';
 import { enhanceNotes } from './note-tools.js';
 import { renderAudioNotes } from './audio-notes.js';
 import { safeUrl } from './core.js';
+import { openTranslation } from './translation-ui.js';
 const query = new URL(location.href).searchParams,
   id = query.get('id'),
   highlightId = query.get('highlight') || '',
   sourceTab = Number(query.get('tab')) || 0;
 const root = document.querySelector('#app');
 let audioCleanup = () => {};
+async function initTranslation(id) {
+  const text = await api('take-translation', { id });
+  const settings = await api('preferences');
+  applyTheme(settings.theme);
+  document.title = 'Translate a selection — Margin';
+  root.innerHTML = `<header class="reader-bar"><div class="brand">${icon('logo', 30)}margin</div></header><main class="capture-page"><h1>Translate a selection</h1><p>Choose an output language and translation provider. Your selection stays on this device until you start an online translation.</p><button type="button" class="primary" id="translate-selection">Open translation</button></main>`;
+  const open = () => openTranslation({ text });
+  root.querySelector('#translate-selection').onclick = () =>
+    open().catch((error) => toast(error.message));
+  await open();
+}
 async function init() {
+  if (query.has('translate')) return initTranslation(query.get('translate'));
   const state = await api('snapshot'),
     page = state.pages.find((p) => p.id === id);
   if (!page) throw new Error('This source no longer exists. Open a new quick note.');

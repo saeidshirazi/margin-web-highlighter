@@ -1,6 +1,6 @@
 import { canonicalUrl, DEFAULT_SETTINGS, VERSION, validateBackup } from './core.js';
 
-export const SYNC_FORMAT = 'margin-drive-sync';
+const SYNC_FORMAT = 'margin-drive-sync';
 const groups = ['pages', 'highlights', 'cards', 'assets'];
 const keyFor = (store, id) => JSON.stringify([store, id]);
 const validDevice = (value) =>
@@ -26,7 +26,7 @@ export function emptyState(device = crypto.randomUUID()) {
   return { format: SYNC_FORMAT, version: 1, device, counter: 0, entries: {}, conflicts: {} };
 }
 // Page URLs are wire identities. Each installation keeps its original local page IDs.
-export function wireRecords(backup) {
+function wireRecords(backup) {
   const validated = validateBackup(backup);
   const urls = new Map(backup.pages.map((page) => [page.id, canonicalUrl(page.url)]));
   const records = new Map();

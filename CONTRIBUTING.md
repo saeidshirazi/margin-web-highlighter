@@ -23,6 +23,7 @@ npx playwright install chromium firefox
 npm run test:e2e
 npm run test:experience
 npm run test:organization
+npm run test:research
 npm run test:native
 npm run test:drive
 npm run build:firefox
@@ -34,6 +35,8 @@ Sync integration tests use **local OAuth/Drive fixtures**, never a real account.
 For installed Brave, set `MARGIN_TEST_BROWSER=brave` before running the Chromium suites; for Edge use `MARGIN_TEST_BROWSER=edge`. Drive tests need a configured or fixture web-client build. `MARGIN_BRAVE_BINARY` overrides Brave’s executable location. Keep `MARGIN_LIVE_TRANSLATION_TEST=0` for deterministic native tests without external translation requests. [More browser details](CROSS-BROWSER.md).
 
 Tests use isolated profiles and synthetic data. Firefox’s isolated WebDriver process explicitly enables system access to test its own extension pages. Never point a test at a personal browser profile.
+
+Browser tests dispose of temporary profiles and fixtures when they finish. Reports and screenshots are generated under `test-results/` and can be cleared after review. Keep `dist*` and `work/public-*` if a browser loads Margin from one of those folders. Keep `google-oauth.local.json` if you use a locally configured build.
 
 ## Design principles
 
@@ -58,3 +61,5 @@ Do not commit browser profiles, personal highlights, backups, private PDFs, toke
 The build does not create a remote repository, publish to browser stores, or enable a paid service.
 
 Official public builds use the production registration in `config/google-oauth.public.json`, containing a public client ID and website metadata. Regular local builds retain ignored configuration. `npm run test:drive:public` checks the staged public Chrome build with two isolated profiles and mocked OAuth/Drive transport; it verifies stable identity and web mode without accessing Google accounts.
+
+The packager starts with a fresh build for each browser, then refreshes its stable staging folder. The source ZIP follows the inventory in `scripts/package.mjs` so it can be built from an extracted copy without Git. Update the inventory when adding a new source directory or file type.

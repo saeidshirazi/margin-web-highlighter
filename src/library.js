@@ -2,7 +2,7 @@ import { extension, browserTarget } from './platform.js';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { api } from './api.js';
-import { searchPages, safeUrl, canonicalUrl } from './core.js';
+import { searchMatch, searchPages, safeUrl, canonicalUrl } from './core.js';
 import { inCollection, collectionPath, collectionTree, presetPages } from './organization.js';
 import {
   mountCollections,
@@ -22,10 +22,12 @@ import {
   date,
   applyTheme,
 } from './ui.js';
-import { exportData, decryptBackup } from './backup.js';
+import { exportData } from './backup.js';
 import { localAI } from './ai.js';
 import { importPDF } from './pdf-store.js';
-import { put, deleteSetting } from './db.js';
+import { readingProgress, saveReadingProgress } from './db.js';
+import { openResearchTool } from './research-tools-ui.js';
+import { chooseBackup } from './restore-ui.js';
 import { researchMarkdown } from './transfer.js';
 import { prepareMarkdown } from './markdown-import.js';
 import { openTranslation } from './translation-ui.js';
@@ -173,6 +175,15 @@ function renderContent() {
       }
     };
   });
+  content.querySelectorAll('[data-search-jump]').forEach((button) => {
+    button.onclick = async () => {
+      try {
+        await openSearchMatch(state.pages.find((page) => page.id === button.dataset.searchJump));
+      } catch (error) {
+        toast(error.message);
+      }
+    };
+  });
   content.querySelectorAll('[data-select]').forEach(
     (b) =>
       (b.onchange = () => {
@@ -192,6 +203,7 @@ function renderContent() {
         renderContent();
       }),
   );
+  mountContinueReading().catch((error) => toast(error.message));
   addExperience(content, state, device, {
     backup: () => exportDialog(exportSelection(), 'json'),
     refresh,
@@ -252,17 +264,102 @@ async function runPreset(preset) {
   });
   toast(`Exported ${pages.length} sources with preset ${preset.name}.`);
 }
+function viewerUrl(page, options = {}) {
+  const params = new URLSearchParams({ id: page.id, ...options });
+  return extension.runtime.getURL(page.type === 'pdf' ? 'pdf.html' : 'reader.html') + '?' + params;
+}
+async function mountContinueReading() {
+  const content = document.querySelector('#content');
+  content?.querySelector('[data-continue-reading]')?.remove();
+  if (view !== 'all' || Object.values(filters).some(Boolean) || !content) return;
+  const { entries, collapsed } = await readingProgress();
+  if (
+    content !== document.querySelector('#content') ||
+    view !== 'all' ||
+    Object.values(filters).some(Boolean)
+  )
+    return;
+  const pages = entries
+    .flatMap((entry) => {
+      const page = state.pages.find((item) => item.id === entry.id);
+      return page ? [{ ...entry, page }] : [];
+    })
+    .slice(0, 3);
+  if (!pages.length) return;
+  content.querySelector('[data-continue-reading]')?.remove();
+  const section = document.createElement('details');
+  section.dataset.continueReading = '';
+  section.className = 'continue-reading';
+  section.open = !collapsed;
+  section.innerHTML = `<summary>Continue reading</summary><div class="row wrap">${pages
+    .map(
+      ({ page, kind, position }) =>
+        `<a class="button" href="${esc(viewerUrl(page, { resume: '1' }))}" target="_blank" rel="noopener"><strong>${esc(page.title)}</strong><small>${kind === 'pdf' ? 'PDF page ' + position : Math.round(position * 100) + '% through article'}</small></a>`,
+    )
+    .join('')}</div>`;
+  section.querySelector('summary').onclick = async (event) => {
+    event.preventDefault();
+    const collapsed = section.open;
+    try {
+      await saveReadingProgress({ collapsed });
+      if (section.isConnected) section.open = !collapsed;
+      else await mountContinueReading();
+    } catch (error) {
+      toast(error.message);
+    }
+  };
+  content.querySelector('.transfer-strip')?.before(section);
+}
+window.addEventListener('focus', () => {
+  if (state) mountContinueReading().catch((error) => toast(error.message));
+});
+function openSearchMatch(page) {
+  const hit = searchMatch(page, counts(page), filters.query || '');
+  if (!hit) return;
+  if (hit.kind === 'text') {
+    const options = hit.pdfPage ? { page: hit.pdfPage } : { query: hit.match };
+    return extension.tabs.create({ url: viewerUrl(page, options) });
+  }
+  if (hit.kind === 'highlight' && page.type === 'pdf')
+    return extension.tabs.create({ url: viewerUrl(page, { highlight: hit.highlightId }) });
+  detailsCollapsed = false;
+  if (detailId !== page.id) openDetail(page.id);
+  else renderDetail();
+  const drawer = document.querySelector('.drawer');
+  const annotation = [...drawer.querySelectorAll('[data-annotation]')].find(
+    (item) => item.dataset.annotation === hit.highlightId,
+  );
+  const target =
+    hit.kind === 'highlight-note'
+      ? annotation?.querySelector('.note-preview')
+      : annotation || drawer.querySelector(hit.kind === 'page-note' ? '[data-page-note]' : 'h1');
+  if (target) {
+    target.tabIndex = -1;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'center' });
+  }
+}
 function card(p) {
   const hs = counts(p);
   const first = hs[0];
-  return `<article class="page-card ${selected.has(p.id) ? 'is-selected' : ''}"><input type="checkbox" class="card-select" data-select="${p.id}" aria-label="Select ${esc(p.title)}" ${selected.has(p.id) ? 'checked' : ''}><div class="card-body" aria-expanded="${detailId === p.id && !detailsCollapsed}" data-page="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.title)}"><div class="site-line"><span class="site-icon">${icon(p.type === 'pdf' ? 'file' : p.type === 'note' ? 'book' : 'external', 13)}</span>${esc(hostname(p.url)).toUpperCase().slice(0, 35)}</div><h3>${esc(p.title)}</h3><div class="quote-preview">${first ? `<mark style="background:${first.color}">${esc(first.text.slice(0, 190))}${first.text.length > 190 ? '…' : ''}</mark>` : esc((p.note || p.text || 'A page worth coming back to.').slice(0, 170))}</div><div class="tags">${[
+  const hit = searchMatch(p, hs, filters.query || '');
+  const matchLabel =
+    hit &&
+    {
+      highlight: 'Open matching highlight',
+      'highlight-note': 'Open matching highlight note',
+      'page-note': 'Open matching note',
+      text: hit.pdfPage ? 'Go to PDF page ' + hit.pdfPage : 'Go to matching text',
+      source: 'Open matching source',
+    }[hit.kind];
+  return `<article class="page-card ${selected.has(p.id) ? 'is-selected' : ''}"><input type="checkbox" class="card-select" data-select="${p.id}" aria-label="Select ${esc(p.title)}" ${selected.has(p.id) ? 'checked' : ''}><div class="card-body" aria-expanded="${detailId === p.id && !detailsCollapsed}" data-page="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.title)}"><div class="site-line"><span class="site-icon">${icon(p.type === 'pdf' ? 'file' : p.type === 'note' ? 'book' : 'external', 13)}</span>${esc(hostname(p.url)).toUpperCase().slice(0, 35)}</div><h3>${esc(p.title)}</h3><div class="quote-preview">${hit ? `<span class="search-excerpt">${esc(hit.before)}<mark>${esc(hit.match)}</mark>${esc(hit.after)}</span>` : first ? `<mark style="background:${first.color}">${esc(first.text.slice(0, 190))}${first.text.length > 190 ? '…' : ''}</mark>` : esc((p.note || p.text || 'A page worth coming back to.').slice(0, 170))}</div><div class="tags">${[
     ...new Set([...p.tags, ...hs.flatMap((h) => h.tags)]),
   ]
     .slice(0, 3)
     .map((t) => `<span class="tag">${esc(t)}</span>`)
     .join(
       '',
-    )}${p.collection ? `<span class="tag">${icon('folder', 10)} ${esc(p.collection)}</span>` : ''}</div></div><div class="card-footer"><span class="row" style="gap:7px"><span class="dots">${[
+    )}${p.collection ? `<span class="tag">${icon('folder', 10)} ${esc(p.collection)}</span>` : ''}</div></div>${hit ? `<button type="button" class="search-jump" data-search-jump="${esc(p.id)}">${esc(matchLabel)}</button>` : ''}<div class="card-footer"><span class="row" style="gap:7px"><span class="dots">${[
     ...new Set(hs.map((h) => h.color)),
   ]
     .slice(0, 5)
@@ -318,7 +415,7 @@ function renderDetail() {
   const drawer = document.createElement('aside');
   drawer.className = 'drawer';
   drawer.setAttribute('aria-label', 'Page details');
-  drawer.innerHTML = `<div class="detail-resizer" role="separator" tabindex="0" aria-label="Resize source details" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="720" aria-valuenow="${state.settings.detailWidth}"></div><div class="drawer-header row between"><span class="eyebrow">${esc(p.type)} · ${hs.length} highlight${hs.length === 1 ? '' : 's'}</span><div class="row"><button class="icon-btn" data-collapse aria-label="Collapse details" title="Hide highlights and show the full library">${icon('chevron')}</button><button class="icon-btn" data-close aria-label="Close details">${icon('close')}</button></div></div><div class="drawer-content"><span class="eyebrow">${esc(hostname(p.url))}</span><h1>${esc(p.title)}</h1>${safeUrl(p.url) ? `<a class="source-link" href="${esc(safeUrl(p.url))}" target="_blank" rel="noreferrer">${esc(p.url)} ${icon('external', 11)}</a>` : ''}<div class="detail-tools">${action('reader', p.type === 'pdf' ? 'PDF viewer' : 'Read offline', p.type === 'pdf' ? 'file' : 'book')}${action('edit-page', 'Edit page', 'tag')}${action('translate-page', 'Translate', 'languages')}${action('read-aloud', 'Read aloud', 'book')}${action('capture-source', 'Quick note / audio', 'mic')}${action('bookmark', p.bookmarked ? 'Bookmarked' : 'Bookmark', 'bookmark', p.bookmarked ? 'primary' : '')}${action('copy-notion', 'Copy for Notion', 'external')}${action('download-md', 'Download .md', 'file')}${action('export-page', 'More exports', 'arrow')}${action('delete-page', 'Delete', 'trash', 'danger')}</div>${p.collection ? `<span class="tag">${esc(p.collection)}</span>` : ''}<div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="section-label">Page note</div><div class="note-preview">${p.note ? markdown(p.note) : '<p class="muted">Add a thought about this page with “Edit page”.</p>'}</div><div class="section-label">Voice recordings</div><div data-saved-audio></div><div class="section-label">On-device AI</div><div class="row wrap small">${action('summary', 'Summarize')}${action('chat', 'Ask this page')}${action('ai-cards', 'Draft flashcards')}</div><p class="muted small" style="margin-top:8px">Runs locally when supported by your browser. Model setup may require a download.</p>${p.summary ? `<div class="note-preview">${markdown(p.summary)}</div>` : ''}<div id="ai-status" class="muted small" role="status"></div><div class="row between section-label"><span>Highlights & notes</span>${action('add-note', 'Add note', 'plus', 'ghost')}</div>${hs.length ? hs.map((h) => `<article class="annotation" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${markdown(h.note)}</div>${h.originalText ? `<details class="repair-history"><summary>Original quote before repair</summary><blockquote>${esc(h.originalText)}</blockquote><p class="muted small">The last 10 replaced locations are retained in full backups.</p></details>` : ''}<div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="annotation-actions"><button data-jump="${h.id}">Find</button>${p.type !== 'pdf' ? `<button data-repair-highlight="${h.id}">Repair location</button>` : ''}<button data-translate-highlight="${h.id}">Translate</button><button data-card="${h.id}">${icon('flash', 12)} Study</button><button data-edit="${h.id}">Edit</button><button data-delete="${h.id}" aria-label="Delete highlight" class="danger">${icon('trash', 13)}</button></div></article>`).join('') : '<p class="muted small">No highlights yet. Open this page and select a passage.</p>'}</div>`;
+  drawer.innerHTML = `<div class="detail-resizer" role="separator" tabindex="0" aria-label="Resize source details" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="720" aria-valuenow="${state.settings.detailWidth}"></div><div class="drawer-header row between"><span class="eyebrow">${esc(p.type)} · ${hs.length} highlight${hs.length === 1 ? '' : 's'}</span><div class="row"><button class="icon-btn" data-collapse aria-label="Collapse details" title="Hide highlights and show the full library">${icon('chevron')}</button><button class="icon-btn" data-close aria-label="Close details">${icon('close')}</button></div></div><div class="drawer-content"><span class="eyebrow">${esc(hostname(p.url))}</span><h1>${esc(p.title)}</h1>${safeUrl(p.url) ? `<a class="source-link" href="${esc(safeUrl(p.url))}" target="_blank" rel="noreferrer">${esc(p.url)} ${icon('external', 11)}</a>` : ''}<div class="detail-tools">${action('reader', p.type === 'pdf' ? 'PDF viewer' : 'Read offline', p.type === 'pdf' ? 'file' : 'book')}${action('edit-page', 'Edit page', 'tag')}${action('translate-page', 'Translate', 'languages')}${action('read-aloud', 'Read aloud', 'book')}${action('capture-source', 'Quick note / audio', 'mic')}${action('bookmark', p.bookmarked ? 'Bookmarked' : 'Bookmark', 'bookmark', p.bookmarked ? 'primary' : '')}${action('copy-notion', 'Copy for Notion', 'external')}${action('download-md', 'Download .md', 'file')}${action('export-page', 'More exports', 'arrow')}${action('delete-page', 'Delete', 'trash', 'danger')}</div>${p.collection ? `<span class="tag">${esc(p.collection)}</span>` : ''}<div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="section-label">Page note</div><div class="note-preview" data-page-note>${p.note ? markdown(p.note) : '<p class="muted">Add a thought about this page with “Edit page”.</p>'}</div><div class="section-label">Voice recordings</div><div data-saved-audio></div><div class="section-label">On-device AI</div><div class="row wrap small">${action('key-points', 'Key points')}${action('summary', 'Summarize')}${action('chat', 'Ask this page')}${action('ai-cards', 'Draft flashcards')}</div><p class="muted small" style="margin-top:8px">Runs locally when supported by your browser. Model setup may require a download.</p>${p.summary ? `<div class="note-preview">${markdown(p.summary)}</div>` : ''}<div id="ai-status" class="muted small" role="status"></div><div class="row between section-label"><span>Highlights & notes</span>${action('add-note', 'Add note', 'plus', 'ghost')}</div>${hs.length ? hs.map((h) => `<article class="annotation" data-annotation="${esc(h.id)}" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${markdown(h.note)}</div>${h.originalText ? `<details class="repair-history"><summary>Original quote before repair</summary><blockquote>${esc(h.originalText)}</blockquote><p class="muted small">The last 10 replaced locations are retained in full backups.</p></details>` : ''}<div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="annotation-actions"><button data-jump="${h.id}">Find</button>${p.type !== 'pdf' ? `<button data-repair-highlight="${h.id}">Repair location</button>` : ''}<button data-highlight-points="${esc(h.id)}">Key points</button><button data-explain-highlight="${esc(h.id)}">Explain</button><button data-translate-highlight="${h.id}">Translate</button><button data-card="${h.id}">${icon('flash', 12)} Study</button><button data-edit="${h.id}">Edit</button><button data-delete="${h.id}" aria-label="Delete highlight" class="danger">${icon('trash', 13)}</button></div></article>`).join('') : '<p class="muted small">No highlights yet. Open this page and select a passage.</p>'}</div>`;
   const workspace = document.querySelector('.workspace');
   workspace.append(drawer);
   renderAudioNotes(drawer.querySelector('[data-saved-audio]'), { pageId: p.id })
@@ -364,6 +461,17 @@ function renderDetail() {
     .forEach(
       (b) => (b.onclick = () => newCard(state.highlights.find((h) => h.id === b.dataset.card))),
     );
+  for (const [attribute, kind] of [
+    ['data-highlight-points', 'points'],
+    ['data-explain-highlight', 'explain'],
+  ]) {
+    drawer.querySelectorAll('[' + attribute + ']').forEach((button) => {
+      button.onclick = () => {
+        const item = hs.find((highlight) => highlight.id === button.getAttribute(attribute));
+        if (item) openResearchTool(kind, p, item, refresh);
+      };
+    });
+  }
   drawer
     .querySelectorAll('[data-jump]')
     .forEach((b) => (b.onclick = () => jump(p, b.dataset.jump)));
@@ -832,32 +940,7 @@ async function handleAction(name, p) {
     document.querySelector('dialog')?.close();
     pdfDialog();
   }
-  if (name === 'import') {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async () => {
-      try {
-        const file = input.files[0];
-        if (file.size > 300 * 1024 * 1024) throw new Error('Backup is too large (maximum 300 MB).');
-        let data = JSON.parse(await file.text());
-        if (data.format === 'margin-encrypted') {
-          dialog({
-            title: 'Unlock backup',
-            body: field('Backup password', 'password', '', 'password'),
-            submit: 'Import',
-            onSubmit: async (f) => {
-              data = await decryptBackup(data, f.get('password'));
-              await mergeBackup(data);
-            },
-          });
-        } else await mergeBackup(data);
-      } catch (e) {
-        toast(e.message);
-      }
-    };
-    input.click();
-  }
+  if (name === 'import') chooseBackup(refresh);
   if (name === 'add-color') {
     if (state.settings.colors.length >= 12) throw new Error('Palette supports up to 12 colors');
     await api('settings', { colors: [...state.settings.colors, '#f6c99b'] });
@@ -872,6 +955,7 @@ async function handleAction(name, p) {
     studyRevealed = true;
     renderContent();
   }
+  if (name === 'key-points') openResearchTool('points', p, null, refresh);
   if (name === 'summary') await runAI('summary', p);
   if (name === 'ai-cards') await runAI('cards', p);
   if (name === 'chat')
@@ -945,18 +1029,8 @@ else if (hash === '#unfiled') filters = { unfiled: true };
 else if (hash.startsWith('#collection='))
   filters = { collection: decodeURIComponent(hash.slice(12)) };
 else if (hash.startsWith('#page=')) detailId = decodeURIComponent(hash.slice(6));
-async function mergeBackup(data) {
-  const id = 'pending-import:' + crypto.randomUUID();
-  await put('settings', { id, value: data });
-  try {
-    await api('commit-import', { id });
-  } finally {
-    await deleteSetting(id);
-  }
-  await refresh();
-  toast('Backup merged into your library');
-}
 extension.storage.onChanged.addListener((changes) => {
+  if (changes.readingRevision && state) mountContinueReading().catch((e) => toast(e.message));
   if ((changes.revision || changes.deviceRevision) && !document.querySelector('dialog[open]'))
     refresh().catch((e) => toast(e.message));
 });

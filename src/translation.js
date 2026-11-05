@@ -63,7 +63,7 @@ export async function localTranslate(options, env = globalThis) {
   } catch (error) {
     throw languageFailure(
       error,
-      'These languages are not supported by Chrome’s on-device language tools on this device. Choose Google Translate website or Google Cloud, or select another language pair.',
+      'These languages are not supported by Chrome’s on-device language tools on this device. Choose Google Translate or LibreTranslate, or select another language pair.',
     );
   }
 }
@@ -74,7 +74,7 @@ async function performLocalTranslation(
   ({ text, target, source } = validateTranslation(text, target, source));
   if (!env.Translator)
     throw new Error(
-      'On-device translation is unavailable. Choose Google Cloud with your own API key, or open Google Translate.',
+      'Chrome’s on-device translator is unavailable. Choose Google Translate or LibreTranslate.',
     );
   const monitor = (m) =>
     m.addEventListener('downloadprogress', (e) =>
@@ -83,7 +83,7 @@ async function performLocalTranslation(
   if (source === 'auto') {
     if (!env.LanguageDetector)
       throw new Error(
-        'Automatic local detection is unavailable. Choose the source language or use Google Cloud.',
+        'Automatic local detection is unavailable. Choose the source language or use another translation provider.',
       );
     if ((await env.LanguageDetector.availability()) === 'unavailable')
       throw new Error(
@@ -113,7 +113,7 @@ async function performLocalTranslation(
   try {
     if ((await env.Translator.availability(options)) === 'unavailable')
       throw new Error(
-        'This language pair is not supported by Chrome’s local translator. Persian and some other languages require another provider. Choose Google Cloud or open Google Translate.',
+        'This language pair is not supported by Chrome’s local translator. Choose Google Translate or LibreTranslate.',
       );
     progress('Preparing on-device translation…');
     const translator = await env.Translator.create({ ...options, monitor, signal });
@@ -130,7 +130,7 @@ async function performLocalTranslation(
   } catch (error) {
     throw languageFailure(
       error,
-      'This language pair is not supported by Chrome’s on-device translator on this device. Choose Google Translate website or Google Cloud instead.',
+      'This language pair is not supported by Chrome’s on-device translator on this device. Choose Google Translate or LibreTranslate instead.',
     );
   }
 }

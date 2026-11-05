@@ -6,9 +6,9 @@ export const extension =
 export const browserTarget = typeof __MARGIN_TARGET__ === 'string' ? __MARGIN_TARGET__ : 'chrome';
 export const webClientId =
   typeof __MARGIN_WEB_CLIENT_ID__ === 'string' ? __MARGIN_WEB_CLIENT_ID__ : '';
-export const dataCategories = ['websiteContent', 'browsingActivity', 'personallyIdentifyingInfo'];
-export function networkPermission(origins) {
-  return { origins, ...(browserTarget === 'firefox' ? { data_collection: dataCategories } : {}) };
+const dataCategories = ['websiteContent', 'browsingActivity', 'personallyIdentifyingInfo'];
+export function networkPermission(origins, categories = dataCategories) {
+  return { origins, ...(browserTarget === 'firefox' ? { data_collection: categories } : {}) };
 }
 export async function openSidebar(tabId, api = extension) {
   // This must be called directly in a user-click handler, particularly on Firefox.

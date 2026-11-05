@@ -12,9 +12,13 @@ export default [
         chrome: 'readonly',
         __MARGIN_TARGET__: 'readonly',
         __MARGIN_WEB_CLIENT_ID__: 'readonly',
+        __MARGIN_TRANSLATION_RELAY_URL__: 'readonly',
       },
     },
-    rules: { 'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }] },
+    rules: {
+      'no-console': 'error',
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+    },
   },
   {
     files: ['scripts/**/*.mjs', 'tests/**/*.mjs', 'eslint.config.js'],

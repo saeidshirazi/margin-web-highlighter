@@ -23,7 +23,7 @@
     </header>
     <main>
       <h1>Margin privacy policy</h1>
-      <p>Effective date: November 5, 2026. Applies to versions 0.8.1 and 0.8.2.</p>
+      <p>Effective date: November 5, 2026. Applies to versions 0.8.1 through 0.8.3.</p>
       <p>
         Chrome, Edge, Brave, and Firefox store research in their own extension databases. Official
         public Chrome, Edge, Brave and Firefox packages use browser-managed web OAuth with a
@@ -136,11 +136,8 @@
         Binary audio is excluded from Markdown, HTML, Notion, and agent research exports.
       </p>
       <p>
-        The default translation workflow is an explicit Google Translate website handoff. Its text
-        is included in the URL and can enter browser history. Pasting the result back saves it
-        locally. This replaces the misleading assumption that local Persian translation was
-        available. Optional in-app Google Cloud/local translation and online speech retain their
-        explicit provider/permission requirements.
+        The Google Translate website option opens a separate tab. Its text is included in the URL
+        and can enter browser history. Pasting the result back saves it locally.
       </p>
       <p>
         Read-aloud uses installed browser/system voices. Online voices are hidden unless you allow
@@ -173,6 +170,14 @@
         displayed text and language choices in its URL. This sends that text to Google on navigation
         and can leave the URL in browser history. It is an explicit external handoff, not private
         local translation.
+      </p>
+      <p>
+        Builds with the free Google relay send only the displayed text and language choices to the
+        project's Google Apps Script web app when you click Translate. The relay stores quota
+        counters only. Margin caches up to 64 results on this device and reuses them for up to 24
+        hours. The cache stays outside backups and sync. You can clear it in the translation window.
+        LibreTranslate sends text to a service running on this device at 127.0.0.1:5000. The
+        automatic quota fallback to LibreTranslate requires your opt-in.
       </p>
       <p>
         The optional Google API host grant uses the existing optional HTTPS host-permission

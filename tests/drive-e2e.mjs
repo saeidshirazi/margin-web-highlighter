@@ -1,30 +1,26 @@
 import { chromium, expect } from '@playwright/test';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { PDFDocument } from 'pdf-lib';
-import { server, files, calls } from './drive-fixture.mjs';
+import { server as fixtureServer, files, calls } from './drive-fixture.mjs';
 import { browserTarget, extensionFolder, launchOptions } from './chromium-target.mjs';
 const publicWeb = process.env.MARGIN_TEST_PUBLIC_OAUTH === '1';
+const publicExtensionId =
+  process.env.MARGIN_TEST_PUBLIC_EXTENSION_ID || 'hpffikaifcfoffjoihlbfgihoeofgdhm';
 const results = path.resolve('test-results', browserTarget, publicWeb ? 'public-drive' : 'drive');
-await mkdir('work', { recursive: true });
+await using server = fixtureServer;
 await mkdir(results, { recursive: true });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const endpoint = `http://127.0.0.1:${server.address().port}/fixture`;
 const contexts = [],
   errors = [];
 async function device() {
-  const context = await chromium.launchPersistentContext(
-    await mkdtemp(path.resolve('work/drive-profile-')),
-    {
-      ...launchOptions,
-      headless: true,
-      args: [
-        `--disable-extensions-except=${extensionFolder}`,
-        `--load-extension=${extensionFolder}`,
-      ],
-    },
-  );
+  const context = await chromium.launchPersistentContext('', {
+    ...launchOptions,
+    headless: true,
+    args: [`--disable-extensions-except=${extensionFolder}`, `--load-extension=${extensionFolder}`],
+  });
   contexts.push(context);
   context.setDefaultTimeout(15000);
   const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
@@ -127,8 +123,8 @@ async function device() {
       const status = await api('drive-status');
       assert.equal(status.configured, true);
       assert.equal(status.authMode, 'web');
-      assert.equal(status.extensionId, 'hpffikaifcfoffjoihlbfgihoeofgdhm');
-      assert.equal(status.redirectUrl, 'https://hpffikaifcfoffjoihlbfgihoeofgdhm.chromiumapp.org/');
+      assert.equal(status.extensionId, publicExtensionId);
+      assert.equal(status.redirectUrl, `https://${publicExtensionId}.chromiumapp.org/`);
     }
     await page.locator('[data-drive-connect]').click();
     await expect.poll(async () => (await api('drive-status')).connected).toBe(true);
@@ -297,5 +293,4 @@ try {
   );
 } finally {
   await Promise.all(contexts.map((context) => context.close()));
-  await new Promise((resolve) => server.close(resolve));
 }

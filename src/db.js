@@ -10,6 +10,7 @@ import {
 } from './core.js';
 import { languageCode } from './languages.js';
 import { EXPERIENCE_KEY, experienceState } from './experience.js';
+import { mapReadingPositions, mergeReadingPositions, READING_LIMIT } from './reading-state.js';
 import {
   PRESETS_KEY,
   normalizePresets,
@@ -31,7 +32,7 @@ const anchorKey = (a) =>
     a.quads || [],
   ]);
 let opened;
-export function openDB() {
+function openDB() {
   return (opened ||= new Promise((resolve, reject) => {
     const req = indexedDB.open('margin-local', 2);
     req.onupgradeneeded = () => {
@@ -81,6 +82,63 @@ export async function transaction(names, mode, fn) {
 }
 export const all = (name) => transaction([name], 'readonly', (s) => request(s[name].getAll()));
 export const get = (name, id) => transaction([name], 'readonly', (s) => request(s[name].get(id)));
+const TRANSLATION_CACHE_KEY = 'device-translation-cache';
+export async function translationCache(key) {
+  const entries = (await get('settings', TRANSLATION_CACHE_KEY))?.value || [];
+  return entries.find((item) => item.key === key && item.expiresAt > Date.now())?.result;
+}
+export async function saveTranslationCache(key, result) {
+  return transaction(['settings'], 'readwrite', async ({ settings }) => {
+    const entries = (await request(settings.get(TRANSLATION_CACHE_KEY)))?.value || [];
+    const now = Date.now();
+    await request(
+      settings.put({
+        id: TRANSLATION_CACHE_KEY,
+        value: [
+          { key, result, expiresAt: now + 86400000 },
+          ...entries.filter((item) => item.key !== key && item.expiresAt > now),
+        ].slice(0, 64),
+      }),
+    );
+  });
+}
+export function clearTranslationCache() {
+  return deleteSetting(TRANSLATION_CACHE_KEY);
+}
+const READING_KEY = 'device-reading-progress';
+const emptyReadingProgress = () => ({ entries: [], collapsed: false });
+export async function readingProgress() {
+  return (await get('settings', READING_KEY))?.value || emptyReadingProgress();
+}
+export async function saveReadingProgress(change) {
+  return transaction(['settings', 'pages'], 'readwrite', async ({ settings, pages }) => {
+    const value = (await request(settings.get(READING_KEY)))?.value || emptyReadingProgress();
+    if ('collapsed' in change) value.collapsed = Boolean(change.collapsed);
+    else {
+      const page = await request(pages.get(change.id));
+      if (!page || !Number.isFinite(change.position)) return;
+      const kind = page.type === 'pdf' ? 'pdf' : 'reader';
+      if (kind !== change.kind) return;
+      const position =
+        kind === 'pdf'
+          ? Math.max(1, Math.floor(change.position))
+          : Math.max(0, Math.min(1, change.position));
+      const previous = value.entries.find((entry) => entry.id === change.id);
+      if (previous?.position === position && previous.kind === kind) return false;
+      value.entries = [
+        {
+          id: change.id,
+          kind,
+          position,
+          updatedAt: Math.max(Date.now(), (previous?.updatedAt || 0) + 1),
+        },
+        ...value.entries.filter((entry) => entry.id !== change.id),
+      ].slice(0, READING_LIMIT);
+    }
+    await request(settings.put({ id: READING_KEY, value }));
+    return true;
+  });
+}
 export async function preferences() {
   return { ...DEFAULT_SETTINGS, ...(await get('settings', 'main'))?.value };
 }
@@ -335,7 +393,7 @@ export async function saveSettings(patch) {
   await put('settings', { id: 'main', value: next });
   return next;
 }
-export function normalizeSettings(patch, old = DEFAULT_SETTINGS) {
+function normalizeSettings(patch, old = DEFAULT_SETTINGS) {
   const next = { ...old };
   for (const key of Object.keys(DEFAULT_SETTINGS))
     if (patch[key] !== undefined) next[key] = patch[key];
@@ -358,13 +416,27 @@ export function normalizeSettings(patch, old = DEFAULT_SETTINGS) {
 export async function applySyncedBackup(backup, journal) {
   const validated = validateBackup(backup),
     settings = normalizeSettings(backup.settings);
-  await transaction(stores, 'readwrite', async (s) => {
+  return transaction(stores, 'readwrite', async (s) => {
+    let readingChanged = false;
+    if (journal.readingPositions) {
+      const current = (await request(s.settings.get(READING_KEY)))?.value || emptyReadingProgress();
+      const local = mapReadingPositions(
+        mapReadingPositions(current.entries, validated.pages, true),
+        validated.pages,
+      );
+      const remote = mapReadingPositions(journal.readingPositions, validated.pages);
+      const entries = mergeReadingPositions(local, remote);
+      readingChanged = JSON.stringify(entries) !== JSON.stringify(current.entries);
+      if (readingChanged)
+        await request(s.settings.put({ id: READING_KEY, value: { ...current, entries } }));
+    }
     for (const name of ['pages', 'highlights', 'cards', 'assets']) {
       await request(s[name].clear());
       for (const item of validated[name]) await request(s[name].put(item));
     }
     await request(s.settings.put({ id: 'main', value: settings }));
     await request(s.settings.put({ id: 'drive-journal', value: journal }));
+    return readingChanged;
   });
 }
 
@@ -546,11 +618,24 @@ export async function gradeCard(id, correct) {
 }
 export const deleteCard = (id) =>
   transaction(['cards'], 'readwrite', (s) => request(s.cards.delete(id)));
-export async function importBackup(data) {
+export async function importBackup(data, { preview = false, expected } = {}) {
   const validated = validateBackup(data);
   const incomingPresets = normalizePresets(data.exportPresets || []);
-  // Merge by canonical page URL; new IDs prevent imported records overwriting unrelated local data.
-  return transaction(stores, 'readwrite', async (s) => {
+  // Preview and restore share the same decisions. A changed report aborts the write transaction.
+  return transaction(stores, preview ? 'readonly' : 'readwrite', async (s) => {
+    const report = {
+      sources: { added: 0, merged: 0 },
+      highlights: { added: 0, skipped: 0 },
+      cards: { added: 0, skipped: 0 },
+      attachments: { added: 0, skipped: 0 },
+      presets: { added: 0, skipped: 0 },
+      attention: { total: 0, examples: [] },
+    };
+    const note = (message) => {
+      report.attention.total++;
+      if (report.attention.examples.length < 8) report.attention.examples.push(message);
+    };
+    const write = (store, item) => (preview ? undefined : request(store.put(item)));
     const presets = normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []);
     for (const preset of incomingPresets) {
       if (
@@ -559,85 +644,125 @@ export async function importBackup(data) {
             item.id === preset.id ||
             JSON.stringify({ ...item, id: '' }) === JSON.stringify({ ...preset, id: '' }),
         )
-      )
+      ) {
+        report.presets.skipped++;
         continue;
-      let name = preset.name,
-        index = 1;
+      }
+      let name = preset.name;
+      let index = 1;
       while (presets.some((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase()))
-        name = preset.name.slice(0, 60) + ` (imported ${index++})`;
+        name = preset.name.slice(0, 60) + ' (imported ' + index++ + ')';
+      if (name !== preset.name) note('Renamed export preset: ' + name);
       presets.push({ ...preset, name });
+      report.presets.added++;
     }
     normalizePresets(presets);
-    await request(s.settings.put({ id: PRESETS_KEY, value: presets }));
-    const localPages = await request(s.pages.getAll());
+    if (report.presets.added) await write(s.settings, { id: PRESETS_KEY, value: presets });
+
+    const localPages = new Map((await request(s.pages.getAll())).map((page) => [page.url, page]));
     const map = new Map();
-    const localHighlights = await request(s.highlights.getAll());
+    const titles = new Map(validated.pages.map((page) => [page.id, page.title.slice(0, 160)]));
+    const highlightKey = (h, pageId = h.pageId) =>
+      JSON.stringify([pageId, h.text, anchorKey(h.anchor), h.note, h.color, h.tags]);
+    const highlights = new Map(
+      (await request(s.highlights.getAll())).map((item) => [highlightKey(item), item.id]),
+    );
     const highlightMap = new Map();
-    const localCards = await request(s.cards.getAll());
+    const cardKey = (c, pageId = c.pageId) => JSON.stringify([pageId, c.question, c.answer]);
+    const cards = new Set((await request(s.cards.getAll())).map((item) => cardKey(item)));
     for (const p of validated.pages) {
-      const existing = localPages.find((x) => x.url === canonicalUrl(p.url));
+      const url = canonicalUrl(p.url);
+      const existing = localPages.get(url);
       const id = existing?.id || uid();
       map.set(p.id, id);
-      if (!existing) await request(s.pages.put({ ...p, id, url: canonicalUrl(p.url) }));
+      if (!existing) {
+        await write(s.pages, { ...p, id, url });
+        report.sources.added++;
+        continue;
+      }
+      report.sources.merged++;
+      if (
+        ['title', 'note', 'text', 'article', 'summary', 'collection', 'bookmarked', 'type'].some(
+          (key) => (existing[key] ?? '') !== (p[key] ?? ''),
+        ) ||
+        JSON.stringify(existing.tags) !== JSON.stringify(p.tags)
+      )
+        note('Kept local source details: ' + titles.get(p.id));
     }
     for (const h of validated.highlights) {
       const pageId = map.get(h.pageId);
-      const duplicate = localHighlights.find(
-        (x) =>
-          x.pageId === pageId &&
-          x.text === h.text &&
-          anchorKey(x.anchor) === anchorKey(h.anchor) &&
-          x.note === h.note &&
-          x.color === h.color &&
-          JSON.stringify(x.tags) === JSON.stringify(h.tags),
-      );
-      const id = duplicate?.id || uid();
+      const key = highlightKey(h, pageId);
+      const duplicate = highlights.get(key);
+      const id = duplicate || uid();
       highlightMap.set(h.id, id);
-      if (!duplicate) await request(s.highlights.put({ ...h, id, pageId }));
+      if (duplicate) report.highlights.skipped++;
+      else {
+        highlights.set(key, id);
+        await write(s.highlights, { ...h, id, pageId });
+        report.highlights.added++;
+      }
     }
     for (const c of validated.cards) {
       const pageId = map.get(c.pageId);
-      if (
-        !localCards.some(
-          (x) => x.pageId === pageId && x.question === c.question && x.answer === c.answer,
-        )
-      )
-        await request(
-          s.cards.put({
-            ...c,
-            id: uid(),
-            highlightId: highlightMap.get(c.highlightId) || '',
-            pageId,
-          }),
-        );
+      const key = cardKey(c, pageId);
+      if (cards.has(key)) report.cards.skipped++;
+      else {
+        cards.add(key);
+        await write(s.cards, {
+          ...c,
+          id: uid(),
+          highlightId: highlightMap.get(c.highlightId) || '',
+          pageId,
+        });
+        report.cards.added++;
+      }
     }
+    const pdfByPage = new Map();
+    const audioByPage = new Map();
     for (const a of validated.assets) {
       if (a.type === 'application/pdf') {
         const id = map.get(a.id);
-        if (!(await request(s.assets.get(id)))) await request(s.assets.put({ ...a, id }));
+        const existing = pdfByPage.get(id) || (await request(s.assets.get(id)));
+        if (existing) {
+          report.attachments.skipped++;
+          if (existing.base64 !== a.base64) note('Kept local PDF: ' + titles.get(a.id));
+        } else {
+          const item = { ...a, id };
+          pdfByPage.set(id, item);
+          await write(s.assets, item);
+          report.attachments.added++;
+        }
       } else {
         const pageId = map.get(a.pageId);
-        const existing = await request(s.assets.index('pageId').getAll(pageId));
+        if (!audioByPage.has(pageId))
+          audioByPage.set(pageId, await request(s.assets.index('pageId').getAll(pageId)));
+        const existing = audioByPage.get(pageId);
+        const sourceId = a.sourceId || a.id;
         if (
-          !existing.some(
-            (x) =>
-              (x.sourceId || x.id) === (a.sourceId || a.id) &&
-              x.base64 === a.base64 &&
-              x.type === a.type,
+          existing.some(
+            (x) => (x.sourceId || x.id) === sourceId && x.base64 === a.base64 && x.type === a.type,
           )
-        )
-          await request(
-            s.assets.put({
-              ...a,
-              sourceId: a.sourceId || a.id,
-              id: 'audio:' + uid(),
-              pageId,
-              highlightId: highlightMap.get(a.highlightId) || '',
-            }),
-          );
+        ) {
+          report.attachments.skipped++;
+        } else {
+          const item = {
+            ...a,
+            sourceId,
+            id: 'audio:' + uid(),
+            pageId,
+            highlightId: highlightMap.get(a.highlightId) || '',
+          };
+          existing.push(item);
+          await write(s.assets, item);
+          report.attachments.added++;
+        }
       }
     }
-    return { pages: validated.pages.length, highlights: validated.highlights.length };
+    if (expected && JSON.stringify(expected) !== JSON.stringify(report))
+      throw new Error(
+        'The library changed since this preview. Open the backup again to review the new result.',
+      );
+    return { pages: validated.pages.length, highlights: validated.highlights.length, report };
   });
 }
 export async function audioNotes(pageId) {

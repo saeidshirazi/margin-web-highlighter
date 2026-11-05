@@ -1,21 +1,17 @@
 import { chromium, expect } from '@playwright/test';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
-await mkdir('work', { recursive: true });
 await mkdir('test-results', { recursive: true });
-const context = await chromium.launchPersistentContext(
-  await mkdtemp(path.resolve('work/language-regression-')),
-  {
-    channel: 'chromium',
-    headless: true,
-    args: [
-      `--disable-extensions-except=${path.resolve('dist')}`,
-      `--load-extension=${path.resolve('dist')}`,
-    ],
-  },
-);
+const context = await chromium.launchPersistentContext('', {
+  channel: 'chromium',
+  headless: true,
+  args: [
+    `--disable-extensions-except=${path.resolve('dist')}`,
+    `--load-extension=${path.resolve('dist')}`,
+  ],
+});
 try {
   const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
   const page = await context.newPage(),

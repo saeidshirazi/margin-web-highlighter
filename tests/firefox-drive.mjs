@@ -1,26 +1,24 @@
 // Real Firefox profiles and IndexedDB; only OAuth and Drive transport are local fixtures.
 import { Builder, By, until } from 'selenium-webdriver';
 import firefox from 'selenium-webdriver/firefox.js';
-import { firefox as playwrightFirefox, chromium } from '@playwright/test';
+import { firefox as playwrightFirefox, chromium, expect } from '@playwright/test';
 import { zipSync } from 'fflate';
-import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { server, files, calls } from './drive-fixture.mjs';
+import { PDFDocument } from 'pdf-lib';
+import { server as fixtureServer, files, calls } from './drive-fixture.mjs';
 
-await mkdir('work', { recursive: true });
+import { archiveFiles } from '../scripts/archive-files.mjs';
+import { scratchDirectory } from '../scripts/scratch-directory.mjs';
+
+await using scratch = await scratchDirectory('test-firefox-drive');
+await using server = fixtureServer;
 const results = path.resolve('test-results/firefox/drive');
 await mkdir(results, { recursive: true });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const endpoint = `http://127.0.0.1:${server.address().port}/fixture`;
-const archive = {};
-async function collect(dir, prefix = '') {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) await collect(path.join(dir, entry.name), prefix + entry.name + '/');
-    else archive[prefix + entry.name] = new Uint8Array(await readFile(path.join(dir, entry.name)));
-  }
-}
-await collect('dist-firefox');
+const archive = await archiveFiles('dist-firefox');
 const manifest = JSON.parse(new TextDecoder().decode(archive['manifest.json']));
 manifest.background.scripts.unshift('fixture-bootstrap.js');
 archive['manifest.json'] = new TextEncoder().encode(JSON.stringify(manifest));
@@ -32,7 +30,7 @@ globalThis.fetch=async(url,options={})=>{
  if(new URL(url).origin!=='https://www.googleapis.com') throw new Error('Unexpected fixture network request');
  return originalFetch(${JSON.stringify(endpoint)},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:String(url),method:options.method||'GET',headers:options.headers,body:options.body instanceof Uint8Array?{bytes:[...options.body]}:{text:options.body}})});
 };`);
-const addon = path.resolve('work/firefox-drive-fixture.xpi');
+const addon = path.join(scratch.path, 'margin-drive-fixture.xpi');
 await writeFile(addon, zipSync(archive));
 const drivers = [];
 let edgeContext;
@@ -114,6 +112,10 @@ try {
     url: 'https://example.test/firefox-sync',
     title: 'Firefox sync',
     note: 'Original',
+    text: Array.from(
+      { length: 60 },
+      (_, index) => `Paragraph ${index}. Reading across browsers.`,
+    ).join('\n\n'),
   });
   const h = await a.api('add-highlight', {
     pageId: page.id,
@@ -192,6 +194,121 @@ try {
   assert.equal((await edgeApi('backup')).highlights[0].text, replacement);
   assert.equal((await edgeApi('backup')).highlights[0].originalText, 'A shared quote');
   assert.equal((await edgeApi('snapshot')).exportPresets.length, 0);
+
+  const firefoxSettings = await a.driver.getCurrentUrl();
+  const firefoxHome = firefoxSettings.split('#')[0];
+  await a.driver.get(firefoxHome.replace('library.html', `reader.html?id=${page.id}`));
+  await a.driver.wait(until.elementLocated(By.css('#article')), 15000);
+  await a.driver.executeScript(() =>
+    window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * 0.63),
+  );
+  await a.driver.sleep(400);
+  await a.driver.get(firefoxSettings);
+  await a.sync();
+  assert.ok([...files.values()].every((file) => !file.data.readingPositions));
+  await a.click('#drive-reading');
+  await a.driver.wait(async () => (await a.api('drive-status')).readingPositions === true, 15000);
+  await a.sync();
+  assert.ok([...files.values()].some((file) => file.data.readingPositions?.[0]?.id === page.url));
+
+  const edgeHome = worker.url().replace('background.js', 'library.html');
+  const edgeSync = async () => {
+    await edgeApi('drive-now');
+    await expect.poll(async () => (await edgeApi('drive-status')).busy).toBe(false);
+    assert.equal((await edgeApi('drive-status')).phase, 'ready');
+  };
+  await edgeSync();
+  await edgePage.goto(edgeHome);
+  await expect(edgePage.locator('[data-continue-reading]')).toHaveCount(0);
+  await edgePage.locator('[data-view=settings]').click();
+  await expect(edgePage.getByLabel('Sync reading positions')).not.toBeChecked();
+  await edgePage.getByLabel('Sync reading positions').check();
+  await expect.poll(async () => (await edgeApi('drive-status')).readingPositions).toBe(true);
+  await edgeSync();
+  await edgePage.goto(edgeHome);
+  const edgeResume = edgePage.locator('[data-continue-reading] a');
+  await expect(edgeResume).toContainText('63% through article');
+  const edgeUrl = await edgeResume.getAttribute('href');
+  assert.notEqual(new URL(edgeUrl).searchParams.get('id'), page.id);
+  await edgePage.goto(edgeUrl);
+  const readingFraction = () =>
+    window.scrollY / (document.documentElement.scrollHeight - innerHeight);
+  await expect.poll(() => edgePage.evaluate(readingFraction)).toBeCloseTo(0.63, 2);
+  await edgePage.evaluate(() =>
+    window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * 0.24),
+  );
+  await edgePage.waitForTimeout(400);
+  await edgePage.goto(edgeHome);
+  await edgeSync();
+  await a.sync();
+  await a.driver.get(firefoxHome);
+  const firefoxResume = await a.driver.wait(
+    until.elementLocated(By.css('[data-continue-reading] a')),
+    15000,
+  );
+  assert.match(await firefoxResume.getText(), /24% through article/);
+  await a.driver.get(await firefoxResume.getAttribute('href'));
+  await a.driver.wait(
+    async () => Math.abs((await a.driver.executeScript(readingFraction)) - 0.24) < 0.01,
+    15000,
+  );
+  await a.driver.get(firefoxSettings);
+  await b.sync();
+  assert.notEqual((await b.api('drive-status')).readingPositions, true);
+  console.log(
+    'PASS: opt-in reading progress resumes across Firefox and Chromium in both directions.',
+  );
+
+  const pdf = await PDFDocument.create();
+  pdf.addPage().drawText('First page of the sync fixture.');
+  pdf.addPage().drawText('Second page of the sync fixture.');
+  await edgePage.locator('[data-action=add]').click();
+  await edgePage.locator('dialog [data-action=pdf]').click();
+  await edgePage.locator('dialog input[type=file]').setInputFiles({
+    name: 'Reading sync fixture.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from(await pdf.save()),
+  });
+  const [pdfViewer] = await Promise.all([
+    edgeContext.waitForEvent('page'),
+    edgePage.locator('dialog button[type=submit]').click(),
+  ]);
+  await expect(pdfViewer.locator('[data-pdf-page="2"] canvas')).toBeVisible();
+  await pdfViewer.locator('#page-number').fill('2');
+  await pdfViewer.locator('#page-number').dispatchEvent('change');
+  await pdfViewer.waitForTimeout(400);
+  await pdfViewer.close();
+  await edgeSync();
+  await a.sync();
+  await a.driver.get(firefoxHome);
+  const pdfResume = await a.driver.wait(
+    until.elementLocated(By.css('[data-continue-reading] a[href*="pdf.html"]')),
+    15000,
+  );
+  assert.match(await pdfResume.getText(), /PDF page 2/);
+  await a.driver.get(await pdfResume.getAttribute('href'));
+  await a.driver.wait(until.elementLocated(By.css('[data-pdf-page="2"] canvas')), 15000);
+  assert.equal(
+    await (await a.driver.findElement(By.css('#page-number'))).getAttribute('value'),
+    '2',
+  );
+  await a.driver.get(firefoxSettings);
+  const edgePdf = (await edgeApi('snapshot')).pages.find((item) => item.type === 'pdf');
+  await edgeApi('delete-page', { id: edgePdf.id });
+  await edgeSync();
+  await a.sync();
+  await a.click('#drive-reading');
+  await a.driver.wait(async () => (await a.api('drive-status')).readingPositions === false, 15000);
+  await a.sync();
+  await a.driver.get(firefoxHome);
+  const localResume = await a.driver.wait(
+    until.elementLocated(By.css('[data-continue-reading] a')),
+    15000,
+  );
+  assert.match(await localResume.getText(), /24% through article/);
+  await a.driver.get(firefoxSettings);
+  console.log('PASS: PDF page sync and turning off reading sync while keeping local progress.');
+
   await edgeApi('save-page', { url: page.url, note: 'Edited from Chromium' });
   await edgeApi('drive-now');
   await a.driver.wait(async () => !(await edgeApi('drive-status')).busy, 20000);
@@ -238,6 +355,7 @@ try {
           'connect UI',
           'records, audio, settings',
           'Firefox to Chromium and back',
+          'opt-in article and PDF reading progress across browser-local source IDs',
           'concurrent edit recovery',
           'cascading deletions',
           'pause, resume, disconnect',
@@ -253,5 +371,4 @@ try {
 } finally {
   await edgeContext?.close();
   await Promise.all(drivers.map((driver) => driver.quit()));
-  await new Promise((resolve) => server.close(resolve));
 }

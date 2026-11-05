@@ -2,6 +2,7 @@ import { extension, openSidebar } from './platform.js';
 import * as db from './db.js';
 import { canonicalUrl } from './core.js';
 import { createDriveSync } from './drive-sync.js';
+import { validateTranslation } from './translation.js';
 let queue = Promise.resolve();
 function serialize(run) {
   const result = queue.then(run);
@@ -32,6 +33,15 @@ const mutations = new Set([
   'commit-import',
 ]);
 const extensionSender = (sender) => sender.url?.startsWith(extension.runtime.getURL(''));
+const translationDraftsKey = 'selectionTranslationDrafts';
+async function translationDrafts() {
+  const saved = (await extension.storage.session.get(translationDraftsKey))[translationDraftsKey];
+  return (saved || []).filter((draft) => draft.expiresAt > Date.now());
+}
+async function saveTranslationDrafts(drafts) {
+  if (drafts.length) await extension.storage.session.set({ [translationDraftsKey]: drafts });
+  else await extension.storage.session.remove(translationDraftsKey);
+}
 async function handle(type, p, sender) {
   const trusted = extensionSender(sender);
   if (!trusted) {
@@ -48,6 +58,7 @@ async function handle(type, p, sender) {
       'open-panel',
       'set-color',
       'open-capture',
+      'open-translation',
     ];
     if (!allowed.includes(type)) throw new Error('This operation is only available in the library');
     const url = canonicalUrl(sender.url);
@@ -113,6 +124,28 @@ async function handle(type, p, sender) {
     }
     case 'append-note':
       return db.appendNote(p);
+    case 'open-translation': {
+      const text = validateTranslation(typeof p.text === 'string' ? p.text.trim() : '', 'en').text;
+      const id = crypto.randomUUID();
+      const previous = (await translationDrafts()).slice(0, 7);
+      await saveTranslationDrafts([{ id, text, expiresAt: Date.now() + 60000 }, ...previous]);
+      try {
+        await extension.tabs.create({
+          url: extension.runtime.getURL('capture.html') + '?translate=' + id,
+        });
+      } catch (error) {
+        await saveTranslationDrafts(previous);
+        throw error;
+      }
+      return;
+    }
+    case 'take-translation': {
+      const drafts = await translationDrafts();
+      const draft = drafts.find((item) => item.id === p.id);
+      await saveTranslationDrafts(drafts.filter((item) => item.id !== p.id));
+      if (!draft) throw new Error('This selection is no longer available. Select the text again.');
+      return draft.text;
+    }
     case 'open-capture': {
       const page = p.pageId
         ? await db.get('pages', p.pageId)
@@ -186,7 +219,7 @@ async function handle(type, p, sender) {
       const staged = await db.get('settings', p.id);
       if (!staged) throw new Error('The backup transfer expired. Import the file again.');
       try {
-        return await db.importBackup(staged.value);
+        return await db.importBackup(staged.value, { expected: p.expected });
       } finally {
         await db.deleteSetting(p.id);
       }
@@ -238,7 +271,7 @@ extension.runtime.onMessage.addListener((message, sender, reply) => {
   // Serial execution also prevents cross-tab read/modify/write races.
   const result = message.type.startsWith('drive-')
     ? extensionSender(sender)
-      ? drive.handle(message.type)
+      ? drive.handle(message.type, message.payload)
       : Promise.reject(new Error('Open Google Drive settings in the Margin library.'))
     : serialize(run);
   result
