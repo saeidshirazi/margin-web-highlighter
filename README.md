@@ -3,7 +3,7 @@
 <p align="center"><strong>Keep what stays with you.</strong><br>Highlight the web. Collect ideas. Take your research anywhere.</p>
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-245943"></a>
-  <img alt="Version 0.8.0" src="https://img.shields.io/badge/version-0.8.0-245943">
+  <img alt="Version 0.8.1" src="https://img.shields.io/badge/version-0.8.1-245943">
   <img alt="Chrome, Edge, Brave and Firefox" src="https://img.shields.io/badge/browsers-Chrome%20%C2%B7%20Edge%20%C2%B7%20Brave%20%C2%B7%20Firefox-245943">
 </p>
 <p align="center"><a href="#install">Install</a> · <a href="docs/GETTING-STARTED.md">First highlight</a> · <a href="FEATURES.md">Features</a> · <a href="docs/EXPORTS.md">Export your research</a> · <a href="PRIVACY.md">Privacy</a></p>
@@ -18,14 +18,20 @@ Margin is a free, open-source browser extension for highlights, notes, bookmarks
 
 | Browser         | Download                                                                                                                                    | Installation tutorial                                               |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Google Chrome   | [Chrome ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.8.0-chrome.zip)                       | [Chrome — five steps](docs/INSTALL.md#google-chrome)                |
-| Microsoft Edge  | [Edge ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.8.0-edge.zip)                           | [Edge — five steps](docs/INSTALL.md#microsoft-edge)                 |
-| Brave           | [Brave ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.8.0-brave.zip)                         | [Brave — five steps](docs/INSTALL.md#brave)                         |
-| Mozilla Firefox | [Firefox XPI — unsigned](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.8.0-firefox-unsigned.xpi) | [Firefox — temporary installation](docs/INSTALL.md#mozilla-firefox) |
+| Google Chrome   | [Chrome ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.8.1-chrome.zip)                       | [Chrome — five steps](docs/INSTALL.md#google-chrome)                |
+| Microsoft Edge  | [Edge ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.8.1-edge.zip)                           | [Edge — five steps](docs/INSTALL.md#microsoft-edge)                 |
+| Brave           | [Brave ZIP](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.8.1-brave.zip)                         | [Brave — five steps](docs/INSTALL.md#brave)                         |
+| Mozilla Firefox | [Firefox XPI — unsigned](https://github.com/saeidshirazi/margin-web-highlighter/releases/latest/download/margin-0.8.1-firefox-unsigned.xpi) | [Firefox — temporary installation](docs/INSTALL.md#mozilla-firefox) |
 
 For Chrome, Edge, or Brave: **extract the ZIP → open your browser’s extensions page → enable Developer mode → Load unpacked → select the extracted folder.** Then pin Margin and refresh your website tab.
 
 Firefox currently loads as a **temporary add-on**, removed when Firefox closes. Permanent installation awaits Mozilla signing. The downloads are development/sideload builds, not browser-store listings. See the [installation guide](docs/INSTALL.md) for updates, permissions, and troubleshooting.
+
+## New in 0.8.1
+
+Official public downloads include Google web sign-in registration. Choose **Settings & backups → Continue with Google** and approve only Margin’s own Drive folder. No Google Cloud setup or API key is needed for official builds.
+
+**Updating Chrome from 0.8.0 or earlier?** The public Chrome build now has a stable extension ID. Back up the old library before switching; keep the old installation until you import and verify the backup in the new one. [Safe update steps](docs/INSTALL.md#update-without-losing-your-library).
 
 ## New in 0.8
 
@@ -72,7 +78,7 @@ That’s it. [Follow the getting-started guide](docs/GETTING-STARTED.md) for PDF
 - **Translation:** the free default opens Google Translate with your chosen text/languages. Paste the result back to save it beside your original note. It is a website handoff, not automatic in-app translation. Set a default target language, including Persian, and use automatic source detection. On-device translation depends on browser/model/language support. Google Cloud Translation is a separate optional integration using your own key and may incur charges; it is not required.
 - **Dictation:** requires browser speech support and a compatible language/service. Firefox does not expose the required API in the tested version; typing and local voice recording remain available. Online processing requires explicit consent.
 - **On-device AI:** summaries, questions, and flashcard drafts use supported local browser models. These features are optional and may be unavailable on your browser/hardware. There is no silent cloud fallback.
-- **Google Drive:** optional full-library sync is implemented and has been verified with the maintainer’s account in Chrome, Edge, and Firefox. Public downloads contain no maintainer OAuth registration, so they work locally out of the box; sign-in needs your own registered build. The maintainer’s Google app is still in testing mode. [Drive setup and privacy](GOOGLE-DRIVE.md).
+- **Google Drive:** official 0.8.1 downloads include optional Google sign-in. Connect your account and approve only Margin’s own hidden Drive folder. Research remains local too. Google storage limits apply; Margin adds no end-to-end encryption to sync. [Connection, privacy and maintainer setup](GOOGLE-DRIVE.md).
 
 </details>
 

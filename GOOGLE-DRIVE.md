@@ -1,14 +1,14 @@
 # Optional Google Drive sync
 
-**Public release packages are ready for local use and deliberately omit maintainer OAuth registration.** You do not need this setup for highlights, notes, recording, PDFs, exports, or backups. To enable optional sync, configure your own build using the steps below. The maintainer’s existing Google registration remains in testing mode and is not a public one-click sync service. `npm run package:public` excludes all local OAuth configuration and preserves your configured build folders.
+**Official public downloads from 0.8.1 include Google sign-in registration.** Open **Settings & backups → Continue with Google**, choose your account and approve Margin’s own Drive folder. No Google Cloud project, API key or command is needed for these downloads. The Google app is in production; each user still controls consent. No paid service or billing was enabled for this setup.
 
-Version 0.6 adds separate web OAuth for Edge, Brave, and Firefox. See [CROSS-BROWSER.md](CROSS-BROWSER.md) for native callback registration, optional Firefox consent, installation and test limits. Chrome’s extension OAuth client is only for Chrome. Public clients need no embedded secret. The configured local packages remain in Google test mode; the user confirmed successful live Google sign-in and “Your library is synced” in both Edge and Firefox on November 4, 2026.
+The public client ID in `config/google-oauth.public.json` identifies the app; it is not a client secret. Public Chrome, Edge and Brave share a stable public identity/callback while retaining separate browser databases and tokens. Firefox retains its Gecko ID/callback. See [cross-browser details](CROSS-BROWSER.md).
 
 Google Drive sync is optional. Your existing library stays in IndexedDB and continues to work offline. Connect from **Settings & backups → Google Drive sync** after reading the consent. Highlights, notes, tags, collections, bookmarks, saved article text/HTML, transcripts, PDFs, recorded/imported audio, flashcards, review progress, and all library preferences are included. Browser-managed microphone permissions, keyboard shortcuts, downloaded AI models, temporary drafts, and API/OAuth tokens are not research records and are not synchronized.
 
-## One-time Google sign-in setup
+## For maintainers: your own Google registration
 
-The source tree and default development ZIP do not contain a registered OAuth client. Continue with Google explains the missing registration and opens the one-time app setup section. A Google Chrome Extension OAuth client must be registered for the actual extension ID. No shared client secret or developer access token belongs in an extension.
+`npm run package:public` uses only the reviewed public registration. A regular local `npm run build` still reads ignored `google-oauth.local.json`; it does not silently adopt the public client. Continue with Google explains missing development registration. A Google Chrome Extension OAuth client must be registered for the actual extension ID. No shared client secret or developer access token belongs in an extension.
 
 1. Export a full JSON backup of your current library. Keep the same installation and folder while updating; do not uninstall it.
 2. Reload Margin at `chrome://extensions`, refresh the library, and copy the extension ID shown in the Google Drive setup section.
@@ -29,7 +29,13 @@ The source tree and default development ZIP do not contain a registered OAuth cl
 
 The [Chrome OAuth guide](https://developer.chrome.com/docs/extensions/how-to/integrate/oauth) describes registering an extension and its client. The [Drive app-data guide](https://developers.google.com/workspace/drive/api/guides/appdata) explains the restricted folder and scope.
 
-## Consistent IDs on other computers and publication
+## Public build identity and safe migration
+
+Official Chrome/Edge/Brave builds use ID `hpffikaifcfoffjoihlbfgihoeofgdhm` and web OAuth. The key is a public RSA SPKI identity key, not a private signing key. Moving the extracted public build to another folder preserves that ID. Chrome versions through 0.8.0 had a path-derived public ID; installing 0.8.1 can create a separate library. Export a complete backup from the old installation, keep it installed, load the new public build, import the backup and verify highlights/PDFs/audio before removing the old copy. Import carries research/presets; device reminder state and credentials are not transferred. Avoid running two installations on the same page at once.
+
+Public packages are staged under `work/public-*` without replacing existing configured `dist*` builds. Existing Chrome native OAuth clients stay supported. Independent maintainers should register their own OAuth app/callbacks and update the public registration rather than depending on the maintainer account.
+
+## Alternative native Chrome registration
 
 Chrome Web Store installations of the same item share an extension ID. For unpacked development copies, an extension ID can change with its path unless a manifest public key fixes it. Follow [Chrome's stable-ID instructions](https://developer.chrome.com/docs/extensions/reference/manifest/key): upload a draft ZIP to the developer dashboard without publishing, retrieve the item's public key, and add that public key as `extensionKey` in `google-oauth.local.json`. Build with a Chrome Extension OAuth client registered for that resulting ID. Do not put a private signing key in the repository or extension.
 

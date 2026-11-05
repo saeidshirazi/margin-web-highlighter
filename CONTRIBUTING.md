@@ -50,9 +50,11 @@ Do not commit browser profiles, personal highlights, backups, private PDFs, toke
 
 1. Update `package.json` and `public/manifest.json` versions together, along with documentation/download names.
 2. Run checks and appropriate browser suites; inspect native recordings/PDF exports and review dependency advisories.
-3. Run `npm run package:public`, then `npm run verify:release`. This builds into isolated staging folders and excludes local OAuth configuration; existing configured browser installations are preserved.
+3. Run `npm run package:public`, then `npm run verify:release` and `npm run test:drive:public`. This builds into isolated staging folders and excludes local OAuth configuration; existing configured browser installations are preserved.
 4. Attach files from `release/public` to a GitHub release. Keep `manifest.json` at each browser archive root. Publish a source snapshot and checksums alongside browser downloads.
 5. State Firefox signing status and optional Google OAuth setup accurately. Do not label a ZIP as a browser-store listing or claim universal site/model support.
 6. For configured public Google sign-in, complete the appropriate Google consent-screen process and verify exact production IDs/callbacks. Never bundle a client secret.
 
 The build does not create a remote repository, publish to browser stores, or enable a paid service.
+
+Official public builds use the production registration in `config/google-oauth.public.json`, containing a public client ID and website metadata. Regular local builds retain ignored configuration. `npm run test:drive:public` checks the staged public Chrome build with two isolated profiles and mocked OAuth/Drive transport; it verifies stable identity and web mode without accessing Google accounts.

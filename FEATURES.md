@@ -1,4 +1,4 @@
-# Features in Margin 0.8.0
+# Features in Margin 0.8.1
 
 [Install](docs/INSTALL.md) · [Getting started](docs/GETTING-STARTED.md) · [Browser compatibility and tests](CROSS-BROWSER.md)
 
@@ -50,7 +50,7 @@ Save up to 20 export presets for the current selection/filtered view, all source
 - Markdown, Notion-friendly exports, AI-agent ZIPs, HTML, CSV, print/PDF digests, and Markdown import.
 - Complete JSON backup with PDF/audio attachments, optional password encryption, atomic merge/restore, and repeat-safe import.
 - Local IndexedDB storage; no required account, telemetry, subscriptions, or application server.
-- Optional registered Google Drive app-data sync: records, settings, attachments, study progress, deletion markers, account isolation and conflict recovery. Public packages omit OAuth registration. [Setup](GOOGLE-DRIVE.md).
+- Optional registered Google Drive app-data sync: records, settings, attachments, study progress, deletion markers, account isolation and conflict recovery. Official 0.8.1 packages include production web OAuth registration. [Setup](GOOGLE-DRIVE.md).
 
 ## Compatibility and practical limits
 

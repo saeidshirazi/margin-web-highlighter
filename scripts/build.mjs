@@ -14,15 +14,23 @@ const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 const baseManifest = JSON.parse(await readFile('public/manifest.json', 'utf8'));
 let google = {};
 try {
-  if (!publicBuild) google = JSON.parse(await readFile('google-oauth.local.json', 'utf8'));
+  google = JSON.parse(
+    await readFile(
+      publicBuild ? 'config/google-oauth.public.json' : 'google-oauth.local.json',
+      'utf8',
+    ),
+  );
+  if (publicBuild && google.enabled !== true) google = {};
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
 }
 const ids = JSON.parse(await readFile('config/browser-ids.json', 'utf8'));
 const manifest = browserManifest(baseManifest, target, google, ids, { publicBuild });
 const oauthWebClientId = publicBuild
-  ? ''
-  : process.env.MARGIN_GOOGLE_WEB_CLIENT_ID || google.webClientId || '';
+  ? google.webClientId || ''
+  : target === 'chrome'
+    ? ''
+    : process.env.MARGIN_GOOGLE_WEB_CLIENT_ID || google.webClientId || '';
 if (oauthWebClientId && !/^\d+-[\w-]+\.apps\.googleusercontent\.com$/.test(oauthWebClientId))
   throw new Error('Invalid Google web OAuth client ID');
 if (pkg.version !== manifest.version)

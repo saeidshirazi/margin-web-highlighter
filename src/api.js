@@ -3,7 +3,10 @@ export async function api(type, payload = {}) {
   const response = await extension.runtime.sendMessage({ type, payload });
   if (!response?.ok)
     throw new Error(
-      response?.error || 'Margin could not connect. Reload this tab after updating the extension.',
+      response?.error === 'Unknown request'
+        ? 'This action is unavailable in the running version of Margin. Reload Margin on your browser’s extensions page, then refresh this tab.'
+        : response?.error ||
+            'Margin could not connect. Reload this tab after updating the extension.',
     );
   return response.data;
 }

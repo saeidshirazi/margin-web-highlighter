@@ -41,3 +41,4 @@ jobs:
           MARGIN_CROSS_CHROMIUM: chromium
       - run: npm run package:public
       - run: npm run verify:release
+      - run: npm run test:drive:public

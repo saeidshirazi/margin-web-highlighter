@@ -33,6 +33,15 @@ test('browser builds use their correct background, sidebar, ID and consent decla
   );
   assert.equal(publicChrome.oauth2, undefined);
   assert.equal(publicChrome.key, undefined);
+  const registered = browserManifest(
+    base,
+    'chrome',
+    { enabled: true, webClientId: '123-public.apps.googleusercontent.com' },
+    ids,
+    { publicBuild: true },
+  );
+  assert.equal(registered.key, ids.edgeKey);
+  assert.equal(registered.oauth2, undefined);
 });
 test('sidebar buttons invoke Firefox or Chromium native APIs without requiring an async bridge', async () => {
   const calls = [];

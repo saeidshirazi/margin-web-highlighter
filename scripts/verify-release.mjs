@@ -6,6 +6,9 @@ import path from 'node:path';
 
 const directory = 'release/public';
 const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+const registration = JSON.parse(await readFile('config/google-oauth.public.json', 'utf8'));
+const ids = JSON.parse(await readFile('config/browser-ids.json', 'utf8'));
+const publicClient = registration.enabled === true ? registration.webClientId : '';
 const checksums = [];
 let local = {};
 try {
@@ -40,13 +43,16 @@ for (const suffix of [
     const background = strFromU8(archive['background.js']);
     assert.ok(!background.includes('fixture-only-no-google-access'));
     assert.ok(!background.includes('123-ci-fixture.apps.googleusercontent.com'));
-    for (const id of [local.clientId, local.webClientId].filter(Boolean))
+    for (const id of [local.clientId, local.webClientId].filter((id) => id && id !== publicClient))
       assert.ok(!background.includes(id), 'Public build contains a local OAuth client');
+    if (publicClient)
+      assert.ok(background.includes(publicClient), 'Public web registration missing');
     if (suffix.startsWith('firefox')) {
       assert.deepEqual(manifest.background.scripts, ['background.js']);
       assert.ok(manifest.sidebar_action);
       assert.equal(manifest.key, undefined);
     } else {
+      if (publicClient) assert.equal(manifest.key, ids.edgeKey, 'Public callback identity changed');
       assert.equal(manifest.background.service_worker, 'background.js');
       assert.ok(manifest.side_panel);
     }

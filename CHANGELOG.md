@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1
+
+- Publish the Google OAuth app to production and supply reviewed public web-client registration for all four browser downloads. No client secret is distributed.
+- Give public Chrome a stable identity and web sign-in; preserve legacy configured native Chrome OAuth. Document the backup/import migration from older path-derived public Chrome IDs.
+- Add a public homepage, privacy policy and license pages on free GitHub Pages; verify project-site ownership.
+- Check public Chrome callback identity, sign-in mode and two-profile sync using local OAuth/Drive fixtures.
+
 ## 0.8.0 — November 4, 2026
 
 - Added nested collection navigation, implicit parents, subtree counts, deep links, arrow-key expansion and keyboard management.

@@ -15,6 +15,9 @@ export function browserManifest(base, target, google, ids, { publicBuild = false
         scopes: ['https://www.googleapis.com/auth/drive.appdata'],
       };
     if (!publicBuild && google.extensionKey) manifest.key = google.extensionKey;
+    // Public Chrome uses the same registered web callback as Edge/Brave. The
+    // public SPKI key fixes its identity across folders without a store account.
+    if (publicBuild && google.enabled === true && google.webClientId) manifest.key = ids.edgeKey;
   } else {
     delete manifest.oauth2;
     // Brave shares the registered Chromium web-OAuth callback with Edge. Browser

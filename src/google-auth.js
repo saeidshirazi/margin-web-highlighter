@@ -13,7 +13,7 @@ export function authSettings(manifest, target = browserTarget, clientId = webCli
     target === 'chrome' &&
     validClient(manifest.oauth2?.client_id) &&
     manifest.oauth2.scopes?.includes(SCOPE);
-  return target === 'chrome'
+  return target === 'chrome' && (native || !validClient(clientId))
     ? { configured: !!native, mode: 'native', clientId: manifest.oauth2?.client_id || '' }
     : { configured: validClient(clientId), mode: 'web', clientId };
 }
@@ -62,11 +62,13 @@ export function createGoogleAuth({
   storage = extension?.storage?.session,
   target = browserTarget,
   clientId = webClientId,
+  manifest = extension?.runtime?.getManifest?.() || {},
   now = Date.now,
 } = {}) {
+  const native = authSettings(manifest, target, clientId).mode === 'native';
   return {
     async token(interactive = false) {
-      if (target === 'chrome' && identity?.getAuthToken) {
+      if (native && identity?.getAuthToken) {
         const result = await identity.getAuthToken({
           interactive,
           scopes: [SCOPE],
@@ -115,13 +117,13 @@ export function createGoogleAuth({
       return result.token;
     },
     async invalidate(token) {
-      if (target === 'chrome' && identity?.removeCachedAuthToken)
+      if (native && identity?.removeCachedAuthToken)
         await identity.removeCachedAuthToken({ token });
       await storage?.remove(SESSION_KEY);
     },
     async disconnect() {
       await storage?.remove(SESSION_KEY);
-      if (target === 'chrome') await identity?.clearAllCachedAuthTokens?.();
+      if (native) await identity?.clearAllCachedAuthTokens?.();
     },
   };
 }

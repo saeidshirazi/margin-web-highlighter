@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { PDFDocument } from 'pdf-lib';
 import { server, files, calls } from './drive-fixture.mjs';
 import { browserTarget, extensionFolder, launchOptions } from './chromium-target.mjs';
-const results = path.resolve('test-results', browserTarget, 'drive');
+const publicWeb = process.env.MARGIN_TEST_PUBLIC_OAUTH === '1';
+const results = path.resolve('test-results', browserTarget, publicWeb ? 'public-drive' : 'drive');
 await mkdir('work', { recursive: true });
 await mkdir(results, { recursive: true });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -37,61 +38,71 @@ async function device() {
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(worker.url().replace('background.js', 'library.html') + '#settings');
   await expect(page.locator('[data-drive-connect]')).toBeEnabled();
-  if (browserTarget === 'chrome') {
+  if (browserTarget === 'chrome' && !publicWeb) {
     await expect(page.locator('[data-drive-setup]')).toBeVisible();
     await page.locator('[data-drive-connect]').click();
     await expect(page.locator('[data-drive-status]')).toContainText('not registered');
     await expect(page.locator('[data-drive-setup]')).toHaveAttribute('open', '');
   }
   // Only test-profile APIs are replaced. No real Google account or OAuth credentials are used.
-  await worker.evaluate((endpoint) => {
-    const manifest = chrome.runtime.getManifest();
-    chrome.runtime.getManifest = () => ({
-      ...manifest,
-      oauth2: {
-        client_id: '123-fixture.apps.googleusercontent.com',
-        scopes: ['https://www.googleapis.com/auth/drive.appdata'],
-      },
-    });
-    chrome.identity.getAuthToken = async () => ({
-      token: 'fixture-only-no-google-access',
-      grantedScopes: ['https://www.googleapis.com/auth/drive.appdata'],
-    });
-    chrome.identity.clearAllCachedAuthTokens = async () => {};
-    chrome.identity.launchWebAuthFlow = async ({ url }) => {
-      const state = new URL(url).searchParams.get('state');
-      return (
-        chrome.identity.getRedirectURL() +
-        '#' +
-        new URLSearchParams({
-          access_token: 'fixture-only-no-google-access',
-          token_type: 'Bearer',
-          expires_in: '3600',
-          scope: 'https://www.googleapis.com/auth/drive.appdata',
-          state,
-        })
-      );
-    };
-    chrome.permissions.contains = async () => true;
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async (url, options = {}) => {
-      if (new URL(url).origin !== 'https://www.googleapis.com')
-        throw new Error('Unexpected network request in Drive fixture');
-      return originalFetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: String(url),
-          method: options.method || 'GET',
-          headers: options.headers,
-          body:
-            options.body instanceof Uint8Array
-              ? { bytes: [...options.body] }
-              : { text: options.body },
-        }),
-      });
-    };
-  }, endpoint);
+  await worker.evaluate(
+    ({ endpoint, publicWeb }) => {
+      const manifest = chrome.runtime.getManifest();
+      chrome.runtime.getManifest = () =>
+        publicWeb
+          ? manifest
+          : {
+              ...manifest,
+              oauth2: {
+                client_id: '123-fixture.apps.googleusercontent.com',
+                scopes: ['https://www.googleapis.com/auth/drive.appdata'],
+              },
+            };
+      chrome.identity.getAuthToken = async () => {
+        if (publicWeb) throw new Error('Public Chrome must use web OAuth');
+        return {
+          token: 'fixture-only-no-google-access',
+          grantedScopes: ['https://www.googleapis.com/auth/drive.appdata'],
+        };
+      };
+      chrome.identity.clearAllCachedAuthTokens = async () => {};
+      chrome.identity.launchWebAuthFlow = async ({ url }) => {
+        globalThis.fixtureWebAuthCalls = (globalThis.fixtureWebAuthCalls || 0) + 1;
+        const state = new URL(url).searchParams.get('state');
+        return (
+          chrome.identity.getRedirectURL() +
+          '#' +
+          new URLSearchParams({
+            access_token: 'fixture-only-no-google-access',
+            token_type: 'Bearer',
+            expires_in: '3600',
+            scope: 'https://www.googleapis.com/auth/drive.appdata',
+            state,
+          })
+        );
+      };
+      chrome.permissions.contains = async () => true;
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async (url, options = {}) => {
+        if (new URL(url).origin !== 'https://www.googleapis.com')
+          throw new Error('Unexpected network request in Drive fixture');
+        return originalFetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: String(url),
+            method: options.method || 'GET',
+            headers: options.headers,
+            body:
+              options.body instanceof Uint8Array
+                ? { bytes: [...options.body] }
+                : { text: options.body },
+          }),
+        });
+      };
+    },
+    { endpoint, publicWeb },
+  );
   await page.evaluate(() => {
     chrome.permissions.request = async () => true;
   });
@@ -112,10 +123,18 @@ async function device() {
     assert.equal((await api('drive-status')).phase, 'ready');
   }
   async function connect() {
+    if (publicWeb) {
+      const status = await api('drive-status');
+      assert.equal(status.configured, true);
+      assert.equal(status.authMode, 'web');
+      assert.equal(status.extensionId, 'hpffikaifcfoffjoihlbfgihoeofgdhm');
+      assert.equal(status.redirectUrl, 'https://hpffikaifcfoffjoihlbfgihoeofgdhm.chromiumapp.org/');
+    }
     await page.locator('[data-drive-connect]').click();
     await expect.poll(async () => (await api('drive-status')).connected).toBe(true);
     await expect.poll(async () => (await api('drive-status')).busy, { timeout: 20000 }).toBe(false);
     assert.equal((await api('drive-status')).phase, 'ready');
+    if (publicWeb) assert.ok(await worker.evaluate(() => globalThis.fixtureWebAuthCalls > 0));
   }
   return { page, api, sync, connect };
 }

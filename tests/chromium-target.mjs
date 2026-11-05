@@ -3,7 +3,8 @@ export const browserTarget = process.env.MARGIN_TEST_BROWSER || 'chrome';
 if (!['chrome', 'edge', 'brave'].includes(browserTarget))
   throw new Error('Unsupported Chromium test target');
 export const extensionFolder = path.resolve(
-  browserTarget === 'chrome' ? 'dist' : `dist-${browserTarget}`,
+  process.env.MARGIN_TEST_EXTENSION_FOLDER ||
+    (browserTarget === 'chrome' ? 'dist' : `dist-${browserTarget}`),
 );
 export const launchOptions =
   browserTarget === 'brave'

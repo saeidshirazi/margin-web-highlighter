@@ -4,8 +4,8 @@ import { createGoogleAuth, validateAuthRedirect, authSettings } from '../src/goo
 const clientId = '123-test.apps.googleusercontent.com',
   redirect = 'https://test.chromiumapp.org/';
 const scope = 'https://www.googleapis.com/auth/drive.appdata';
-test('Edge, Brave and Firefox use web OAuth with state, exact redirects, expiring session tokens and no secret', async () => {
-  for (const target of ['edge', 'brave', 'firefox']) {
+test('Chrome, Edge, Brave and Firefox use web OAuth with state, exact redirects, expiring session tokens and no secret', async () => {
+  for (const target of ['chrome', 'edge', 'brave', 'firefox']) {
     const cache = {},
       calls = [];
     const storage = {
@@ -14,6 +14,9 @@ test('Edge, Brave and Firefox use web OAuth with state, exact redirects, expirin
       remove: async (key) => delete cache[key],
     };
     const identity = {
+      getAuthToken: () => assert.fail('Public web sign-in must not use Chrome native OAuth'),
+      removeCachedAuthToken: () => assert.fail('Web sign-in must not clear native OAuth tokens'),
+      clearAllCachedAuthTokens: () => assert.fail('Web sign-in must not clear native OAuth tokens'),
       getRedirectURL: () => redirect,
       launchWebAuthFlow: async (options) => {
         const url = new URL(options.url);
@@ -47,6 +50,25 @@ test('Edge, Brave and Firefox use web OAuth with state, exact redirects, expirin
     await auth.disconnect();
     assert.deepEqual(cache, {});
   }
+  const nativeCalls = [];
+  const nativeAuth = createGoogleAuth({
+    target: 'chrome',
+    clientId,
+    manifest: { oauth2: { client_id: clientId, scopes: [scope] } },
+    identity: {
+      getAuthToken: async () => {
+        nativeCalls.push('token');
+        return { token: 'native-fixture', grantedScopes: [scope] };
+      },
+      removeCachedAuthToken: async () => nativeCalls.push('invalidate'),
+      clearAllCachedAuthTokens: async () => nativeCalls.push('disconnect'),
+      launchWebAuthFlow: () => assert.fail('Configured legacy Chrome must retain native OAuth'),
+    },
+  });
+  assert.equal(await nativeAuth.token(true), 'native-fixture');
+  await nativeAuth.invalidate('native-fixture');
+  await nativeAuth.disconnect();
+  assert.deepEqual(nativeCalls, ['token', 'invalidate', 'disconnect']);
 });
 test('OAuth rejects forged redirects, wrong state, denied scope and malformed tokens', () => {
   const fragment = '#access_token=secret&token_type=Bearer&expires_in=3600&state=correct';
@@ -73,4 +95,10 @@ test('OAuth rejects forged redirects, wrong state, denied scope and malformed to
     false,
   );
   assert.equal(authSettings({}, 'firefox', clientId).mode, 'web');
+  assert.equal(authSettings({}, 'chrome', clientId).mode, 'web');
+  assert.equal(authSettings({}, 'chrome', '').configured, false);
+  assert.equal(
+    authSettings({ oauth2: { client_id: clientId, scopes: [scope] } }, 'chrome', clientId).mode,
+    'native',
+  );
 });
