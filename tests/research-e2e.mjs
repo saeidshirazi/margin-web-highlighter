@@ -230,9 +230,7 @@ try {
     .poll(() => reader.evaluate(() => globalThis.spokenSelections.at(-1)))
     .toEqual([french, 'fr']);
   await reader.evaluate(() => {
-    const paragraph = [...document.querySelectorAll('#article p')].find((p) =>
-      p.textContent.includes('ReaderNeedle'),
-    );
+    const paragraph = document.querySelector('#article p');
     const range = document.createRange();
     range.selectNodeContents(paragraph);
     getSelection().removeAllRanges();
