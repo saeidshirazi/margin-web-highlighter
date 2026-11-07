@@ -60,6 +60,10 @@ Choose **Study** beside a quote to make a flashcard. Review it from **Flashcards
 
 When you want to move your research, choose **Export**. [Notion, Markdown, AI-agent and backup tutorials →](EXPORTS.md)
 
+### Proofread a note
+
+In a library note editor or Quick Note, open **Proofread note · English**. Suggestions appear after you pause typing. Select a suggestion’s explanation to highlight the affected phrase in your draft, then choose a replacement or **Ignore**. Margin leaves your draft unchanged until you apply a suggestion. Quoted passages, code, web addresses, and lines containing non-Latin letters are excluded. The checker runs offline and supports drafts up to 16,000 characters.
+
 Before closing a temporary Firefox session, moving devices, updating, or removing the extension, make a **Full JSON backup**. It includes your complete research plus PDF/audio files.
 
 ## New in 0.7

@@ -61,7 +61,14 @@ for (const suffix of [
       assert.equal(manifest.background.service_worker, 'background.js');
       assert.ok(manifest.side_panel);
     }
-    for (const asset of ['library.html', 'content.js', 'icons/128.png', 'THIRD_PARTY_NOTICES.txt'])
+    for (const asset of [
+      'library.html',
+      'content.js',
+      'icons/128.png',
+      'THIRD_PARTY_NOTICES.txt',
+      'proofreading-worker.js',
+      'harper_wasm_slim_bg.wasm',
+    ])
       assert.ok(names.includes(asset));
   }
   checksums.push(createHash('sha256').update(bytes).digest('hex') + '  ' + name);

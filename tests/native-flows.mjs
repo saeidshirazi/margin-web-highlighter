@@ -206,9 +206,9 @@ try {
   await library.bringToFront();
   await library.locator('[name=result]').fill('سلام دنیا');
   await library.locator('dialog[open] [type=submit]').click();
-  assert.ok(
-    (await call('snapshot')).pages.find((p) => p.id === restored.id).note.includes('سلام دنیا'),
-  );
+  await expect
+    .poll(async () => (await call('snapshot')).pages.find((p) => p.id === restored.id)?.note)
+    .toContain('سلام دنیا');
   console.log('PASS: no-key translation handoff and pasted-result save preserve original notes');
   await library.screenshot({ path: path.join(results, 'audio-notes-library.png'), fullPage: true });
   assert.deepEqual(errors, []);

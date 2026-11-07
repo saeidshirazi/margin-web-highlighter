@@ -374,6 +374,20 @@ try {
   assert.match(await text('[data-speech-status]'), /not available|unavailable/i);
   await click('dialog[open] [data-close]');
   pass('unsupported dictation is explained while local recording remains available');
+  await click('.drawer [data-action=edit-page]');
+  await fill('dialog[open] textarea[name=note]', 'This is a example.');
+  await click('dialog[open] .proofreading summary');
+  const grammarFix = await driver.wait(
+    until.elementLocated(By.xpath('//dialog//button[normalize-space()="Apply “an”"]')),
+    20000,
+  );
+  await grammarFix.click();
+  assert.equal(
+    await (await element('dialog[open] textarea[name=note]')).getAttribute('value'),
+    'This is an example.',
+  );
+  await click('dialog[open] [data-close]');
+  pass('local Harper worker checks and corrects English notes in Firefox');
   const beforeCapture = new Set(await driver.getAllWindowHandles());
   await api('open-capture', { pageId: page.id, mode: 'voice' });
   let capture;

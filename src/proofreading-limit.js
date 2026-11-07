@@ -1,0 +1,1 @@
+export const MAX_PROOFREAD_LENGTH = 16000;

@@ -4,6 +4,7 @@ import { createDictation, speechAvailability } from './speech.js';
 import { escapeHtml as esc } from './core.js';
 import { createAudioRecorder } from './audio.js';
 import { persistRecording } from './audio-notes.js';
+import { addProofreading } from './proofreading-ui.js';
 
 export function enhanceNotes(modal) {
   const fields = modal.querySelectorAll('textarea[name=note]');
@@ -26,6 +27,7 @@ export function enhanceNotes(modal) {
     audioArea.innerHTML =
       '<div class="row wrap"><button type="button" data-audio-record>Record voice</button><button type="button" data-audio-stop disabled>Stop recording</button><label class="audio-import">Attach audio<input type="file" data-audio-file accept="audio/*,.webm,.mp3,.m4a,.ogg,.wav" hidden></label></div><p data-audio-status class="muted small" role="status">Record a voice note or attach an audio file. Audio is saved locally with the note (up to 5 minutes / 20 MB).</p><div data-audio-pending></div>';
     tools.before(audioArea);
+    addProofreading(field, modal);
     function addPending(value) {
       const id = crypto.randomUUID();
       pending.push({ ...value, id });

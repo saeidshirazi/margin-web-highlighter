@@ -722,3 +722,33 @@
 .library-highlight h2 {
   margin: 0 0 8px;
 }
+.proofreading {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.proofreading summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.proofreading ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.proofreading li {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.proofreading button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.proofreading li > button {
+  margin-bottom: 6px;
+}
