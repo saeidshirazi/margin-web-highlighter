@@ -1,8 +1,10 @@
-# Features in Margin 0.9.5
+# Features in Margin 0.9.6
 
 [Install](docs/INSTALL.md) · [Getting started](docs/GETTING-STARTED.md) · [Browser compatibility and tests](CROSS-BROWSER.md)
 
 ## New in 0.9
+
+Save a named search to reuse a library view with its query, filters, and sort order. Open **Related highlights** on any library highlight to find other quotes with shared tags or words in quotes and notes.
 
 **Proofread note** checks English drafts locally in the library and Quick Note editors. On a website, open **Proofread · English** beneath the note in a highlight’s annotation popup. Select a suggestion to find the text, then apply or ignore it.
 

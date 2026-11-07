@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.6
+
+- Save a named library search with its view, filters, and sort order, then run it again on the current library.
+- Find related highlights by shared tags or words in quotes and notes. Each match shows why it appeared.
+
 ## 0.9.5
 
 - Recover unsaved website annotation notes after closing the popup or reloading a page. Restore or discard the draft when you reopen the highlight.
