@@ -19,6 +19,7 @@ export function createAnnotator({
   extraAnchor,
   onCapture,
   onProofread,
+  onNoteDraft,
   repair,
 }) {
   const doc = root.ownerDocument;
@@ -279,9 +280,54 @@ export function createAnnotator({
       }
     });
     box.querySelector('[data-close]').onclick = close;
-    const field = box.querySelector('[data-note]');
+    const editorBox = box;
+    const field = editorBox.querySelector('[data-note]');
+    field.value = item.note || '';
+    let draftToken;
+    if (onNoteDraft) {
+      const prompt = doc.createElement('div');
+      prompt.className = 'tools';
+      prompt.hidden = true;
+      prompt.innerHTML =
+        '<p role="status">Unsaved note draft found on this browser.</p><div class="row"><button data-restore-draft>Restore draft</button><button data-discard-draft>Discard draft</button></div>';
+      field.closest('label').after(prompt);
+      const restoredInput = new win.Event('input', { bubbles: true });
+      field.addEventListener('input', (event) => {
+        if (event === restoredInput) return;
+        prompt.hidden = true;
+        draftToken = win.crypto.getRandomValues(new Uint32Array(4)).join('-');
+        onNoteDraft(item.id, { action: 'write', token: draftToken, text: field.value }).catch(
+          error,
+        );
+      });
+      onNoteDraft(item.id, { action: 'get' })
+        .then((draft) => {
+          if (!draft || !editorBox.isConnected || draftToken || draft.text === field.value) return;
+          const restore = prompt.querySelector('[data-restore-draft]');
+          const discard = prompt.querySelector('[data-discard-draft]');
+          prompt.hidden = false;
+          restore.onclick = () => {
+            field.value = draft.text;
+            draftToken = draft.token;
+            prompt.hidden = true;
+            field.dispatchEvent(restoredInput);
+            field.focus();
+          };
+          discard.onclick = async () => {
+            restore.disabled = discard.disabled = true;
+            try {
+              await onNoteDraft(item.id, { action: 'discard', token: draft.token });
+              prompt.hidden = true;
+            } catch (e) {
+              error(e);
+            } finally {
+              restore.disabled = discard.disabled = false;
+            }
+          };
+        })
+        .catch(error);
+    }
     if (onProofread) {
-      const editorBox = box;
       const dispose = addProofreading(field, editorBox, { checkDraft: onProofread, compact: true });
       const observer = new win.ResizeObserver(() => position(editorBox, x, y));
       observer.observe(editorBox);
@@ -302,13 +348,14 @@ export function createAnnotator({
     );
     box.querySelector('[data-save]').onclick = async () => {
       const patch = {
-        note: box.querySelector('[data-note]').value,
+        note: field.value,
         tags: box.querySelector('[data-tags]').value,
         color: chosen,
       };
       try {
-        await update(item.id, patch);
-        close();
+        const savedDraftToken = draftToken;
+        await update(item.id, patch, savedDraftToken);
+        if (box === editorBox && draftToken === savedDraftToken) close();
         await refresh();
         toast('Note saved');
       } catch (e) {
@@ -321,10 +368,11 @@ export function createAnnotator({
       voice.textContent = 'Voice note';
       voice.onclick = async () => {
         try {
-          await update(item.id, {
-            note: box.querySelector('[data-note]').value,
-            tags: box.querySelector('[data-tags]').value,
-          });
+          await update(
+            item.id,
+            { note: field.value, tags: editorBox.querySelector('[data-tags]').value },
+            draftToken,
+          );
           await onCapture('voice', item);
         } catch (e) {
           error(e);

@@ -252,8 +252,34 @@ export async function addHighlight(input) {
     return item;
   });
 }
-export async function updateHighlight(id, patch) {
-  return transaction(['highlights', 'pages'], 'readwrite', async (s) => {
+const NOTE_DRAFT_PREFIX = 'note-draft:';
+const noteDraftKey = (id) => NOTE_DRAFT_PREFIX + id;
+
+async function discardNoteDraft(settings, key, token) {
+  if ((await request(settings.get(key)))?.value.token === token)
+    await request(settings.delete(key));
+}
+
+export async function noteDraft(id, { action, token, text }) {
+  const key = noteDraftKey(id);
+  if (action === 'get') return (await get('settings', key))?.value ?? null;
+  if (typeof token !== 'string' || !token) throw new Error('Invalid note draft token');
+  if (action === 'discard')
+    return transaction(['settings'], 'readwrite', (s) => discardNoteDraft(s.settings, key, token));
+  if (action !== 'write' || typeof text !== 'string') throw new Error('Invalid note draft');
+  return transaction(['highlights', 'settings'], 'readwrite', async (s) => {
+    const highlight = await request(s.highlights.get(id));
+    if (!highlight) throw new Error('Highlight no longer exists');
+    if (text === highlight.note) await request(s.settings.delete(key));
+    else await request(s.settings.put({ id: key, value: { token, text } }));
+  });
+}
+
+export async function updateHighlight(id, patch, draftToken) {
+  const stores = ['highlights', 'pages'];
+  if (patch.note !== undefined && typeof draftToken === 'string' && draftToken)
+    stores.push('settings');
+  return transaction(stores, 'readwrite', async (s) => {
     const old = await request(s.highlights.get(id));
     if (!old) throw new Error('Highlight no longer exists');
     const next = { ...old, updatedAt: Math.max(Date.now(), old.updatedAt + 1) };
@@ -263,6 +289,7 @@ export async function updateHighlight(id, patch) {
     await request(s.highlights.put(next));
     const page = await request(s.pages.get(old.pageId));
     if (page) await request(s.pages.put({ ...page, updatedAt: Date.now() }));
+    if (s.settings) await discardNoteDraft(s.settings, noteDraftKey(id), draftToken);
     return next;
   });
 }
@@ -360,20 +387,27 @@ export async function recordBackupDownload(revision) {
   });
 }
 export async function removePage(id) {
-  return transaction(['pages', 'highlights', 'cards', 'assets'], 'readwrite', async (s) => {
-    await request(s.pages.delete(id));
-    await request(s.assets.delete(id));
-    for (const key of await request(s.assets.index('pageId').getAllKeys(id)))
-      await request(s.assets.delete(key));
-    for (const name of ['highlights', 'cards'])
-      for (const key of await request(s[name].index('pageId').getAllKeys(id)))
-        await request(s[name].delete(key));
-  });
+  return transaction(
+    ['pages', 'highlights', 'cards', 'assets', 'settings'],
+    'readwrite',
+    async (s) => {
+      await request(s.pages.delete(id));
+      await request(s.assets.delete(id));
+      for (const key of await request(s.assets.index('pageId').getAllKeys(id)))
+        await request(s.assets.delete(key));
+      for (const name of ['highlights', 'cards'])
+        for (const key of await request(s[name].index('pageId').getAllKeys(id))) {
+          await request(s[name].delete(key));
+          if (name === 'highlights') await request(s.settings.delete(noteDraftKey(key)));
+        }
+    },
+  );
 }
 export async function removeHighlight(id) {
-  return transaction(['highlights', 'cards'], 'readwrite', async (s) => {
+  return transaction(['highlights', 'cards', 'settings'], 'readwrite', async (s) => {
     const item = await request(s.highlights.get(id));
     if (item) await request(s.highlights.delete(id));
+    await request(s.settings.delete(noteDraftKey(id)));
     const cards = (await request(s.cards.getAll())).filter((card) => card.highlightId === id);
     for (const card of cards) await request(s.cards.delete(card.id));
     return item ? { ...item, _deletedCards: cards } : item;
@@ -444,6 +478,14 @@ export async function applySyncedBackup(backup, journal) {
     for (const name of ['pages', 'highlights', 'cards', 'assets']) {
       await request(s[name].clear());
       for (const item of validated[name]) await request(s[name].put(item));
+    }
+    const draftKeys = (await request(s.settings.getAllKeys())).filter(
+      (key) => typeof key === 'string' && key.startsWith(NOTE_DRAFT_PREFIX),
+    );
+    if (draftKeys.length) {
+      const survivingDraftKeys = new Set(validated.highlights.map((item) => noteDraftKey(item.id)));
+      for (const key of draftKeys)
+        if (!survivingDraftKeys.has(key)) await request(s.settings.delete(key));
     }
     await request(s.settings.put({ id: 'main', value: settings }));
     await request(s.settings.put({ id: 'drive-journal', value: journal }));

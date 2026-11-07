@@ -66,6 +66,8 @@ In a library note editor or Quick Note, open **Proofread note · English**. Sugg
 
 On a website, click a highlight to open its annotation popup, then open **Proofread · English** beneath the note. The compact panel shows up to two suggestions at a time. Applying a suggestion edits the draft. Choose **Save note** to save it to your library.
 
+If you close the popup or reload the page before saving, reopen the highlight and choose **Restore draft** to continue editing or **Discard draft** to keep the saved note. Draft text stays in the current browser and is excluded from exports, backups, and Google Drive sync.
+
 Before closing a temporary Firefox session, moving devices, updating, or removing the extension, make a **Full JSON backup**. It includes your complete research plus PDF/audio files.
 
 ## New in 0.7

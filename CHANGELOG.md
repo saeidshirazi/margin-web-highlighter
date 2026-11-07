@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.5
+
+- Recover unsaved website annotation notes after closing the popup or reloading a page. Restore or discard the draft when you reopen the highlight.
+
 ## 0.9.4
 
 - Added compact offline English proofreading to the annotation popup on websites.
