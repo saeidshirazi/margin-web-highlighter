@@ -4,6 +4,8 @@ import { canonicalUrl } from './core.js';
 import { createDriveSync } from './drive-sync.js';
 import { validateTranslation } from './translation.js';
 import { createReleaseUpdates } from './release-updates.js';
+import { checkDraft } from './proofreading-engine.js';
+import { MAX_PROOFREAD_LENGTH } from './proofreading-limit.js';
 let queue = Promise.resolve();
 function serialize(run) {
   const result = queue.then(run);
@@ -259,6 +261,17 @@ async function handle(type, p, sender) {
 async function changed() {
   await extension.storage.local.set({ revision: crypto.randomUUID() });
 }
+async function checkPopupNote(sender, text) {
+  if (
+    sender.id !== extension.runtime.id ||
+    !sender.tab ||
+    !/^https?:|^file:/.test(sender.url || '')
+  )
+    throw new Error('Open a Margin annotation on a website to proofread it.');
+  if (typeof text !== 'string' || text.length > MAX_PROOFREAD_LENGTH)
+    throw new Error('This draft is too large to proofread.');
+  return checkDraft(text);
+}
 extension.runtime.onMessage.addListener((message, sender, reply) => {
   if (!message?.type) return false;
   const run = async () => {
@@ -279,7 +292,9 @@ extension.runtime.onMessage.addListener((message, sender, reply) => {
       ? extensionSender(sender)
         ? releaseUpdates.handle(message.type, message.payload)
         : Promise.reject(new Error('Open Settings & backups in the Margin library.'))
-      : serialize(run);
+      : message.type === 'proofread-note'
+        ? checkPopupNote(sender, message.payload?.text)
+        : serialize(run);
   result
     .then(async (data) => {
       reply({ ok: true, data });

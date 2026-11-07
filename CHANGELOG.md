@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.4
+
+- Added compact offline English proofreading to the annotation popup on websites.
+
 ## 0.9.3
 
 - Added on-device English proofreading for library notes and Quick Note drafts. Review suggestions as you type, then apply or ignore them individually.

@@ -1,11 +1,8 @@
-import { LocalLinter } from 'harper.js';
-import { slimBinary } from 'harper.js/slimBinary';
-import { proofread } from './proofreading.js';
+import { checkDraft } from './proofreading-engine.js';
 
-const linter = new LocalLinter({ binary: slimBinary });
 self.onmessage = async ({ data }) => {
   try {
-    self.postMessage({ issues: await proofread(data, linter) });
+    self.postMessage({ issues: await checkDraft(data) });
   } catch {
     self.postMessage({ error: true });
   }

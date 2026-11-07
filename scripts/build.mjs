@@ -66,8 +66,8 @@ await Promise.all(
       format: name === 'content' ? 'iife' : 'esm',
       target: target === 'firefox' ? 'firefox150' : 'chrome150',
       define: {
-        // Harper also has a Node-only filesystem loader. The worker uses the browser loader.
-        ...(name === 'proofreading-worker' ? { process: 'undefined' } : {}),
+        // Harper has a Node-only filesystem loader. Extension workers use the browser loader.
+        ...(['background', 'proofreading-worker'].includes(name) ? { process: 'undefined' } : {}),
         __MARGIN_TARGET__: JSON.stringify(target),
         __MARGIN_WEB_CLIENT_ID__: JSON.stringify(oauthWebClientId),
         __MARGIN_TRANSLATION_RELAY_URL__: JSON.stringify(relayUrl),

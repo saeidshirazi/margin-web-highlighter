@@ -15,7 +15,15 @@ const results = path.resolve('test-results/firefox');
 await mkdir(results, { recursive: true });
 await using scratch = await scratchDirectory('test-firefox');
 const addonPath = path.join(scratch.path, 'margin.xpi');
-await writeFile(addonPath, zipSync(await archiveFiles('dist-firefox')));
+const files = await archiveFiles('dist-firefox');
+// Marionette cannot look inside a closed shadow root. Open it in this test archive only.
+const closedRoot = 'host.attachShadow({ mode: "closed" })';
+const contentScript = strFromU8(files['content.js']);
+assert.ok(contentScript.includes(closedRoot));
+files['content.js'] = new TextEncoder().encode(
+  contentScript.replace(closedRoot, 'host.attachShadow({ mode: "open" })'),
+);
+await writeFile(addonPath, zipSync(files));
 let revised = false;
 await using server = createServer((req, res) => {
   res.setHeader('Content-Type', 'text/html');
@@ -240,6 +248,29 @@ try {
   const page = snapshot.pages[0],
     h = snapshot.highlights[0];
   pass('real selection toolbar and persisted native CSS highlight');
+  await driver.switchTo().window(source);
+  await click('#passage strong');
+  const popup = await (await element('div[data-margin-ui]')).getShadowRoot();
+  const draft = await poll(
+    async () => (await popup.findElements(By.css('[data-note]')))[0],
+    'Annotation editor',
+  );
+  await draft.sendKeys('This is a example.');
+  await (await popup.findElement(By.css('.proofreading summary'))).click();
+  const correction = await poll(async () => {
+    for (const button of await popup.findElements(By.css('[data-proofread-issues] button'))) {
+      if ((await button.getText()) === 'Apply “an”') return button;
+    }
+  }, 'Website proofreading suggestion');
+  await correction.click();
+  assert.equal(await draft.getAttribute('value'), 'This is an example.');
+  await (await popup.findElement(By.css('[data-save]'))).click();
+  await driver.switchTo().window(library);
+  await poll(
+    async () => (await api('snapshot')).highlights[0].note === 'This is an example.',
+    'Saved popup note',
+  );
+  pass('native Firefox website annotation proofreads and saves the corrected draft');
   await api('update-highlight', {
     id: h.id,
     patch: { note: '**Firefox note**', tags: 'browser, research', color: '#a8e6cf' },
