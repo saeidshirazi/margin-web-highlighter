@@ -359,6 +359,41 @@ try {
   await expect(library.getByRole('heading', { name: 'Restore complete' })).toBeVisible();
   await expect(library.getByRole('dialog')).toContainText('Review 1 items');
   assert.equal((await api('snapshot')).pages.length, 3);
+  await library.getByRole('button', { name: 'Done', exact: true }).click();
+  await library.locator('[data-view=bookmarks]').click();
+  await library.reload();
+  await expect(library.locator('[data-view=bookmarks]')).toHaveAttribute('aria-current', 'page');
+  await library.locator('[data-view=settings]').click();
+  await search.fill('Research');
+  await expect(library.locator('[data-view=all]')).toHaveAttribute('aria-current', 'page');
+  await expect(search).toBeFocused();
+  await library.locator('.card-body').first().click();
+  await library.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(library.locator('.drawer')).toHaveCount(0);
+  await expect(library.locator('.workspace')).not.toHaveClass(/details-open/);
+  const unusualId = 'quote"><img src=x data-injected="yes">';
+  await api('restore-highlight', { item: { ...highlight, id: unusualId } });
+  await library.reload();
+  await search.fill('Research article');
+  await library.locator('.card-body').first().click();
+  await expect(library.locator('[data-injected]')).toHaveCount(0);
+  await expect(library.locator('[data-edit]').last()).toHaveAttribute('data-edit', unusualId);
+  await library.goto(base + 'library.html#collection=%');
+  await library.reload();
+  await expect(library.locator('[data-view=all]')).toHaveAttribute('aria-current', 'page');
+  await library.setViewportSize({ width: 390, height: 844 });
+  const resumeLink = recent.getByRole('link').first();
+  await expect(resumeLink).toBeVisible();
+  const stacked = await resumeLink.evaluate(
+    (link) =>
+      link.querySelector('strong').getBoundingClientRect().bottom <=
+      link.querySelector('small').getBoundingClientRect().top,
+  );
+  assert.equal(
+    stacked,
+    true,
+    'Continue-reading title and progress should stack on a narrow screen',
+  );
   assert.deepEqual(errors, []);
   console.log(
     `PASS ${browserTarget}: pronunciation, translation, research tools, search, resume, highlights view, quote copying, and encrypted restore preview.`,

@@ -1,6 +1,6 @@
 import { extension } from './platform.js';
 import DOMPurify from 'dompurify';
-import { marked } from 'marked';
+import { renderMarkdown } from './markup.js';
 import { api } from './api.js';
 import { icon, esc, toast, applyTheme } from './ui.js';
 import { createAnnotator } from './annotator.js';
@@ -105,10 +105,7 @@ async function init() {
       ALLOWED_ATTR: [],
     });
   } else if (page.type === 'note') {
-    article.innerHTML = DOMPurify.sanitize(marked.parse(page.note || ''), {
-      FORBID_TAGS: ['img', 'iframe', 'video', 'audio', 'style', 'form'],
-      FORBID_ATTR: ['style'],
-    });
+    article.innerHTML = renderMarkdown(page.note);
   } else if (page.text) {
     article.textContent = page.text;
     article.style.whiteSpace = 'pre-wrap';

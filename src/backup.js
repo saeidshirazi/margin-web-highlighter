@@ -4,8 +4,7 @@ import { toHTML, csv } from './core.js';
 import { backupSnapshot } from './db.js';
 import { researchMarkdown, researchBundle } from './transfer.js';
 import { zipSync, strToU8 } from 'fflate';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { renderMarkdown } from './markup.js';
 const enc = new TextEncoder(),
   dec = new TextDecoder();
 const base64 = (bytes) => {
@@ -99,9 +98,7 @@ export async function exportData(format, pages, highlights, password = '', optio
   }
   if (format === 'notion-copy') {
     const text = researchMarkdown(pages, highlights, options);
-    const html = DOMPurify.sanitize(marked.parse(text), {
-      FORBID_TAGS: ['img', 'iframe', 'video', 'audio', 'style', 'form'],
-    });
+    const html = renderMarkdown(text);
     if (typeof ClipboardItem === 'undefined')
       throw new Error('Rich copying is unavailable. Use Copy Markdown or the Notion ZIP instead.');
     await navigator.clipboard.write([

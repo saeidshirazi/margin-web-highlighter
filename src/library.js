@@ -1,6 +1,5 @@
 import { extension, browserTarget } from './platform.js';
-import DOMPurify from 'dompurify';
-import { marked } from 'marked';
+import { renderMarkdown as markdown } from './markup.js';
 import { api } from './api.js';
 import { searchHighlights, searchMatch, searchPages, safeUrl, canonicalUrl } from './core.js';
 import { inCollection, collectionPath, collectionTree, presetPages } from './organization.js';
@@ -10,7 +9,8 @@ import {
   moveSourcesDialog,
   createCollectionDialog,
 } from './collections-ui.js';
-import { setupPresets, addSavedExports } from './presets-ui.js';
+import { addSavedExports } from './presets-ui.js';
+import { openExportDialog } from './library-export.js';
 import {
   icon,
   esc,
@@ -24,11 +24,10 @@ import {
 } from './ui.js';
 import { exportData } from './backup.js';
 import { localAI } from './ai.js';
-import { importPDF } from './pdf-store.js';
+import { downloadPDF, importPDF, MAX_PDF_BYTES } from './pdf-store.js';
 import { readingProgress, saveReadingProgress } from './db.js';
 import { openResearchTool } from './research-tools-ui.js';
 import { chooseBackup } from './restore-ui.js';
-import { researchMarkdown } from './transfer.js';
 import { prepareMarkdown } from './markdown-import.js';
 import { openTranslation } from './translation-ui.js';
 import { renderAudioNotes } from './audio-notes.js';
@@ -49,11 +48,6 @@ let state,
   detailsCollapsed = false,
   detailScroll = 0,
   studyRevealed = false;
-const markdown = (text) =>
-  DOMPurify.sanitize(marked.parse(text || ''), {
-    FORBID_TAGS: ['img', 'iframe', 'video', 'audio', 'source', 'style', 'form', 'input'],
-    FORBID_ATTR: ['style'],
-  });
 const action = (name, text, ico = '', cls = '') =>
   `<button type="button" data-action="${name}" class="${cls}">${ico ? icon(ico) : ''}${text}</button>`;
 async function refresh() {
@@ -87,8 +81,14 @@ function render() {
   const search = app.querySelector('#search');
   search.oninput = () => {
     filters.query = search.value;
-    if (view === 'settings' || view === 'study') view = 'all';
-    renderContent();
+    if (view === 'settings' || view === 'study') {
+      view = 'all';
+      history.replaceState(null, '', '#all');
+      render();
+      const nextSearch = app.querySelector('#search');
+      nextSearch.focus();
+      nextSearch.setSelectionRange(search.selectionStart, search.selectionEnd);
+    } else renderContent();
     if (search.value.trim() && !device.searched) {
       device.searched = true;
       api('update-experience', { searched: true }).catch((e) => toast(e.message));
@@ -441,7 +441,7 @@ function card(p) {
       text: hit.pdfPage ? 'Go to PDF page ' + hit.pdfPage : 'Go to matching text',
       source: 'Open matching source',
     }[hit.kind];
-  return `<article class="page-card ${selected.has(p.id) ? 'is-selected' : ''}"><input type="checkbox" class="card-select" data-select="${p.id}" aria-label="Select ${esc(p.title)}" ${selected.has(p.id) ? 'checked' : ''}><div class="card-body" aria-expanded="${detailId === p.id && !detailsCollapsed}" data-page="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.title)}"><div class="site-line"><span class="site-icon">${icon(p.type === 'pdf' ? 'file' : p.type === 'note' ? 'book' : 'external', 13)}</span>${esc(hostname(p.url)).toUpperCase().slice(0, 35)}</div><h3>${esc(p.title)}</h3><div class="quote-preview">${hit ? `<span class="search-excerpt">${esc(hit.before)}<mark>${esc(hit.match)}</mark>${esc(hit.after)}</span>` : first ? `<mark style="background:${first.color}">${esc(first.text.slice(0, 190))}${first.text.length > 190 ? '…' : ''}</mark>` : esc((p.note || p.text || 'A page worth coming back to.').slice(0, 170))}</div><div class="tags">${[
+  return `<article class="page-card ${selected.has(p.id) ? 'is-selected' : ''}"><input type="checkbox" class="card-select" data-select="${esc(p.id)}" aria-label="Select ${esc(p.title)}" ${selected.has(p.id) ? 'checked' : ''}><div class="card-body" aria-expanded="${detailId === p.id && !detailsCollapsed}" data-page="${esc(p.id)}" tabindex="0" role="button" aria-label="Open ${esc(p.title)}"><div class="site-line"><span class="site-icon">${icon(p.type === 'pdf' ? 'file' : p.type === 'note' ? 'book' : 'external', 13)}</span>${esc(hostname(p.url)).toUpperCase().slice(0, 35)}</div><h3>${esc(p.title)}</h3><div class="quote-preview">${hit ? `<span class="search-excerpt">${esc(hit.before)}<mark>${esc(hit.match)}</mark>${esc(hit.after)}</span>` : first ? `<mark style="background:${first.color}">${esc(first.text.slice(0, 190))}${first.text.length > 190 ? '…' : ''}</mark>` : esc((p.note || p.text || 'A page worth coming back to.').slice(0, 170))}</div><div class="tags">${[
     ...new Set([...p.tags, ...hs.flatMap((h) => h.tags)]),
   ]
     .slice(0, 3)
@@ -506,7 +506,7 @@ function renderDetail() {
   const drawer = document.createElement('aside');
   drawer.className = 'drawer';
   drawer.setAttribute('aria-label', 'Page details');
-  drawer.innerHTML = `<div class="detail-resizer" role="separator" tabindex="0" aria-label="Resize source details" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="720" aria-valuenow="${state.settings.detailWidth}"></div><div class="drawer-header row between"><span class="eyebrow">${esc(p.type)} · ${hs.length} highlight${hs.length === 1 ? '' : 's'}</span><div class="row"><button class="icon-btn" data-collapse aria-label="Collapse details" title="Hide highlights and show the full library">${icon('chevron')}</button><button class="icon-btn" data-close aria-label="Close details">${icon('close')}</button></div></div><div class="drawer-content"><span class="eyebrow">${esc(hostname(p.url))}</span><h1>${esc(p.title)}</h1>${safeUrl(p.url) ? `<a class="source-link" href="${esc(safeUrl(p.url))}" target="_blank" rel="noreferrer">${esc(p.url)} ${icon('external', 11)}</a>` : ''}<div class="detail-tools">${action('reader', p.type === 'pdf' ? 'PDF viewer' : 'Read offline', p.type === 'pdf' ? 'file' : 'book')}${action('edit-page', 'Edit page', 'tag')}${action('translate-page', 'Translate', 'languages')}${action('read-aloud', 'Read aloud', 'book')}${action('capture-source', 'Quick note / audio', 'mic')}${action('bookmark', p.bookmarked ? 'Bookmarked' : 'Bookmark', 'bookmark', p.bookmarked ? 'primary' : '')}${action('copy-notion', 'Copy for Notion', 'external')}${action('download-md', 'Download .md', 'file')}${action('export-page', 'More exports', 'arrow')}${action('delete-page', 'Delete', 'trash', 'danger')}</div>${p.collection ? `<span class="tag">${esc(p.collection)}</span>` : ''}<div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="section-label">Page note</div><div class="note-preview" data-page-note>${p.note ? markdown(p.note) : '<p class="muted">Add a thought about this page with “Edit page”.</p>'}</div><div class="section-label">Voice recordings</div><div data-saved-audio></div><div class="section-label">On-device AI</div><div class="row wrap small">${action('key-points', 'Key points')}${action('summary', 'Summarize')}${action('chat', 'Ask this page')}${action('ai-cards', 'Draft flashcards')}</div><p class="muted small" style="margin-top:8px">Runs locally when supported by your browser. Model setup may require a download.</p>${p.summary ? `<div class="note-preview">${markdown(p.summary)}</div>` : ''}<div id="ai-status" class="muted small" role="status"></div><div class="row between section-label"><span>Highlights & notes</span>${action('add-note', 'Add note', 'plus', 'ghost')}</div>${hs.length ? hs.map((h) => `<article class="annotation" data-annotation="${esc(h.id)}" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${markdown(h.note)}</div>${h.originalText ? `<details class="repair-history"><summary>Original quote before repair</summary><blockquote>${esc(h.originalText)}</blockquote><p class="muted small">The last 10 replaced locations are retained in full backups.</p></details>` : ''}<div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="annotation-actions"><button data-jump="${h.id}">Find</button>${copyQuoteButton(h)}${p.type !== 'pdf' ? `<button data-repair-highlight="${h.id}">Repair location</button>` : ''}<button data-highlight-points="${esc(h.id)}">Key points</button><button data-explain-highlight="${esc(h.id)}">Explain</button><button data-translate-highlight="${h.id}">Translate</button><button data-card="${h.id}">${icon('flash', 12)} Study</button><button data-edit="${h.id}">Edit</button><button data-delete="${h.id}" aria-label="Delete highlight" class="danger">${icon('trash', 13)}</button></div></article>`).join('') : '<p class="muted small">No highlights yet. Open this page and select a passage.</p>'}</div>`;
+  drawer.innerHTML = `<div class="detail-resizer" role="separator" tabindex="0" aria-label="Resize source details" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="720" aria-valuenow="${state.settings.detailWidth}"></div><div class="drawer-header row between"><span class="eyebrow">${esc(p.type)} · ${hs.length} highlight${hs.length === 1 ? '' : 's'}</span><div class="row"><button class="icon-btn" data-collapse aria-label="Collapse details" title="Hide highlights and show the full library">${icon('chevron')}</button><button class="icon-btn" data-close aria-label="Close details">${icon('close')}</button></div></div><div class="drawer-content"><span class="eyebrow">${esc(hostname(p.url))}</span><h1>${esc(p.title)}</h1>${safeUrl(p.url) ? `<a class="source-link" href="${esc(safeUrl(p.url))}" target="_blank" rel="noreferrer">${esc(p.url)} ${icon('external', 11)}</a>` : ''}<div class="detail-tools">${action('reader', p.type === 'pdf' ? 'PDF viewer' : 'Read offline', p.type === 'pdf' ? 'file' : 'book')}${action('edit-page', 'Edit page', 'tag')}${action('translate-page', 'Translate', 'languages')}${action('read-aloud', 'Read aloud', 'book')}${action('capture-source', 'Quick note / audio', 'mic')}${action('bookmark', p.bookmarked ? 'Bookmarked' : 'Bookmark', 'bookmark', p.bookmarked ? 'primary' : '')}${action('copy-notion', 'Copy for Notion', 'external')}${action('download-md', 'Download .md', 'file')}${action('export-page', 'More exports', 'arrow')}${action('delete-page', 'Delete', 'trash', 'danger')}</div>${p.collection ? `<span class="tag">${esc(p.collection)}</span>` : ''}<div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="section-label">Page note</div><div class="note-preview" data-page-note>${p.note ? markdown(p.note) : '<p class="muted">Add a thought about this page with “Edit page”.</p>'}</div><div class="section-label">Voice recordings</div><div data-saved-audio></div><div class="section-label">On-device AI</div><div class="row wrap small">${action('key-points', 'Key points')}${action('summary', 'Summarize')}${action('chat', 'Ask this page')}${action('ai-cards', 'Draft flashcards')}</div><p class="muted small" style="margin-top:8px">Runs locally when supported by your browser. Model setup may require a download.</p>${p.summary ? `<div class="note-preview">${markdown(p.summary)}</div>` : ''}<div id="ai-status" class="muted small" role="status"></div><div class="row between section-label"><span>Highlights & notes</span>${action('add-note', 'Add note', 'plus', 'ghost')}</div>${hs.length ? hs.map((h) => `<article class="annotation" data-annotation="${esc(h.id)}" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${markdown(h.note)}</div>${h.originalText ? `<details class="repair-history"><summary>Original quote before repair</summary><blockquote>${esc(h.originalText)}</blockquote><p class="muted small">The last 10 replaced locations are retained in full backups.</p></details>` : ''}<div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="annotation-actions"><button data-jump="${esc(h.id)}">Find</button>${copyQuoteButton(h)}${p.type !== 'pdf' ? `<button data-repair-highlight="${esc(h.id)}">Repair location</button>` : ''}<button data-highlight-points="${esc(h.id)}">Key points</button><button data-explain-highlight="${esc(h.id)}">Explain</button><button data-translate-highlight="${esc(h.id)}">Translate</button><button data-card="${esc(h.id)}">${icon('flash', 12)} Study</button><button data-edit="${esc(h.id)}">Edit</button><button data-delete="${esc(h.id)}" aria-label="Delete highlight" class="danger">${icon('trash', 13)}</button></div></article>`).join('') : '<p class="muted small">No highlights yet. Open this page and select a passage.</p>'}</div>`;
   const workspace = document.querySelector('.workspace');
   workspace.append(drawer);
   bindCopyQuotes(drawer, new Map(hs.map((highlight) => [highlight.id, { page: p, highlight }])));
@@ -666,7 +666,7 @@ function repairLocation(page, highlight) {
 async function jump(p, id) {
   if (p.type === 'pdf')
     return extension.tabs.create({
-      url: extension.runtime.getURL('pdf.html') + '?id=' + p.id + '&highlight=' + id,
+      url: viewerUrl(p, { highlight: id }),
     });
   let tab;
   for (const t of await extension.tabs.query({})) {
@@ -688,7 +688,7 @@ async function jump(p, id) {
       toast('Reload the page to activate Margin.');
     }
   } else {
-    const url = extension.runtime.getURL('reader.html') + '?id=' + p.id + '&highlight=' + id;
+    const url = viewerUrl(p, { highlight: id });
     if (p.article || p.type === 'note') await extension.tabs.create({ url });
     else {
       await extension.tabs.create({ url: p.url });
@@ -696,100 +696,14 @@ async function jump(p, id) {
     }
   }
 }
-function exportDialog(initialPages, initial = 'md') {
-  let pages = initialPages;
-  let hs = state.highlights.filter((h) => pages.some((p) => p.id === h.pageId));
-  const modal = dialog({
-    title: 'Take your research with you',
-    body: `<div class="export-summary"><span>${pages.length} documents</span><span>${hs.length} highlights</span><span>Notes & source links included</span></div><div class="destinations"><button type="button" data-destination="notion"><b>N</b><strong>Notion</strong><span>One Markdown file per page</span></button><button type="button" data-destination="md"><b>↓</b><strong>Markdown</strong><span>A portable research document</span></button><button type="button" data-destination="agent"><b>✦</b><strong>AI agents</strong><span>Sources, metadata & stable IDs</span></button></div><label class="field">Export format<select name="format"><option value="md">Markdown document (.md)</option><option value="notion">Notion import bundle (.zip)</option><option value="notion-copy">Copy formatted text for Notion</option><option value="agent">AI-agent research bundle (.zip)</option><option value="clipboard">Copy Markdown to clipboard</option><option value="json">Full backup · JSON (entire library)</option><option value="html">HTML · formatted, with colors</option><option value="csv">CSV · spreadsheets</option><option value="print">Print / Save as PDF</option></select></label><div class="export-options"><label><input type="checkbox" name="metadata"> Include YAML metadata</label><label><input type="checkbox" name="source"> Include saved source text</label></div><div id="export-guidance" class="export-guidance"></div><div data-password>${field('Optional password · encrypts JSON backup', 'password', '', 'password')}</div><details class="export-preview"><summary>Preview Markdown</summary><pre id="export-preview"></pre></details>`,
-    submit: 'Export',
-    onSubmit: async (f) => {
-      if (f.get('password') && f.get('format') !== 'json')
-        throw new Error('Password encryption is available for JSON backups.');
-      if (!pages.length && f.get('format') !== 'json')
-        throw new Error('Add a document or highlight before exporting.');
-      await exportData(f.get('format'), pages, hs, f.get('password'), {
-        metadata: f.has('metadata'),
-        includeSource: f.has('source'),
-      });
-      if (f.get('format') === 'json') await refresh();
-      toast(
-        f.get('format').includes('copy') || f.get('format') === 'clipboard'
-          ? 'Copied. Paste into your notes app.'
-          : 'Your export is ready',
-      );
-    },
-  });
-  modal.classList.add('export-modal');
-  const select = modal.querySelector('[name=format]');
-  select.value = initial;
-  const update = () => {
-    const format = select.value,
-      backup = format === 'json';
-    const summaryPages = backup ? state.pages : pages;
-    modal.querySelector('.export-summary').innerHTML =
-      `<span>${summaryPages.length} documents</span><span>${state.highlights.filter((item) => summaryPages.some((page) => page.id === item.pageId)).length} highlights</span><span>Notes & source links included</span>`;
-    for (const button of modal.querySelectorAll('[data-save-preset],[data-update-preset]'))
-      button.disabled = backup;
-    modal.querySelector('[data-password]').hidden = !backup;
-    modal.querySelector('[name=password]').disabled = !backup;
-    modal.querySelector('.export-options').hidden =
-      backup || ['csv', 'print', 'html'].includes(format);
-    modal
-      .querySelectorAll('[data-destination]')
-      .forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.destination === format)));
-    modal.querySelector('#export-guidance').textContent = backup
-      ? 'Backs up the entire library, including PDF attachments. Keep your password safe; it cannot be recovered.'
-      : format === 'notion'
-        ? 'In Notion: Settings → Import → Text & Markdown. Select the extracted .md files, or use the ZIP importer. This download stays local until you import it.'
-        : format === 'notion-copy'
-          ? 'Copies formatted text and a plain-text version. Open a Notion page and paste. Formatting may vary by editor.'
-          : format === 'agent'
-            ? 'A local ZIP with one Markdown file per document, YAML metadata, a structured manifest, and source-handling guidance. Share only the documents you intend to give an agent.'
-            : 'Exports the current selection or visible filtered documents. Saved source text is included only when you choose it.';
-    modal.querySelector('#export-preview').textContent =
-      researchMarkdown(pages.slice(0, 1), hs, {
-        metadata: modal.querySelector('[name=metadata]').checked || format === 'agent',
-        includeSource: modal.querySelector('[name=source]').checked,
-      }).slice(0, 5000) || 'No documents selected.';
-    modal.querySelector('[type=submit]').textContent =
-      format === 'notion-copy' || format === 'clipboard'
-        ? 'Copy to clipboard'
-        : backup
-          ? 'Download backup'
-          : 'Download export';
-  };
-  setupPresets(modal, state, {
-    apply: (preset, config) => {
-      pages = presetPages(config, state, initialPages);
-      hs = state.highlights.filter((item) => pages.some((page) => page.id === item.pageId));
-      if (preset) {
-        select.value = preset.format;
-        modal.querySelector('[name=metadata]').checked = preset.metadata;
-        modal.querySelector('[name=source]').checked = preset.includeSource;
-      }
-      update();
-    },
-    read: () => ({
-      format: select.value,
-      metadata: modal.querySelector('[name=metadata]').checked,
-      includeSource: modal.querySelector('[name=source]').checked,
-    }),
-    changed: (presets) => {
+function exportDialog(pages, format = 'md') {
+  return openExportDialog(state, pages, format, {
+    refresh,
+    presetsChanged: (presets) => {
       state.exportPresets = presets;
       renderContent();
     },
   });
-  select.onchange = update;
-  modal.querySelectorAll('.export-options input').forEach((input) => (input.onchange = update));
-  modal.querySelectorAll('[data-destination]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        select.value = b.dataset.destination;
-        update();
-      }),
-  );
-  update();
 }
 function renderSettings(content) {
   content.innerHTML = `<div class="page-heading"><span class="eyebrow">Make yourself at home</span><h1>Settings & backups</h1><p class="muted">Your research stays on this device, with optional Google Drive sync.</p></div><section class="settings-section"><h2>Highlight your way</h2><p>Choose a palette that fits your thinking. Click any color to change it.</p><div class="row wrap" id="palette">${state.settings.colors.map((c, i) => `<label class="field" style="margin:10px 0">Color ${i + 1}<input type="color" data-palette="${i}" value="${c}" aria-label="Palette color ${i + 1}"></label>`).join('')}${action('add-color', 'Add color', 'plus')}</div><div class="setting-row"><label for="selection-toolbar">Show toolbar when text is selected</label><input id="selection-toolbar" type="checkbox" ${state.settings.selectionToolbar ? 'checked' : ''}></div><div class="setting-row"><label for="theme">Appearance</label><select id="theme">${['light', 'dark', 'sepia', 'contrast', 'auto'].map((t) => `<option ${state.settings.theme === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div><p style="margin-top:16px">Shortcuts: Alt S · highlight, Alt Q · quick mode, Alt L · library. Configure conflicts in <strong>${browserTarget === 'firefox' ? 'about:addons → Manage Extension Shortcuts' : `${browserTarget}://extensions/shortcuts`}</strong>.</p></section><section class="settings-section"><h2>Your data, in your hands</h2><p>Back up regularly. Uninstalling Margin or deleting your browser profile removes local data. Backups include your saved articles, highlights, notes, cards, settings, and PDF attachments.</p><div class="row wrap">${action('export', 'Export & back up', 'arrow', 'primary')}${action('import', 'Import backup', 'plus')}</div><p style="margin-top:15px">Import merges records and keeps existing pages. It never clears your library. Settings stay as configured on this device.</p></section><section class="settings-section"><h2>Privacy by design</h2><p>An account is optional. No subscriptions or analytics. Google Drive sync starts only when you connect and allow it. Research is stored in this extension’s IndexedDB database. The library never loads remote fonts, icons, or cover images.</p><p>Website access is used to restore highlights and show the selection toolbar. Additional website access is requested for remote PDFs, Google Cloud translation, or Google Drive sync. On-device AI can download a browser model; it does not send your research to a server.</p><p>Paused sites: ${state.settings.disabledSites.length ? esc(state.settings.disabledSites.join(', ')) : 'None'}</p><div class="row">${action('resume-sites', 'Resume all sites')}${action('guide', 'Installation & help', 'book')}</div></section>`;
@@ -830,7 +744,7 @@ function renderSettings(content) {
 function renderStudy(content) {
   const due = state.cards.filter((c) => c.dueAt <= Date.now()).sort((a, b) => a.dueAt - b.dueAt);
   const card = due[0];
-  content.innerHTML = `<div class="page-heading"><span class="eyebrow">Read. Remember. Repeat.</span><h1>A little learning, every day.</h1><p class="muted">${due.length} cards due · ${state.cards.length} cards in your library</p></div>${card ? `<div class="study-card"><span class="eyebrow">${esc(state.pages.find((p) => p.id === card.pageId)?.title || 'Your research')}</span><div class="question">${esc(card.question)}</div>${studyRevealed ? `<div class="answer">${esc(card.answer)}</div><p class="muted small">How did you do?</p><div class="study-actions"><button data-grade="false">Review again · 10 min</button><button data-grade="true" class="primary">I remembered</button></div>` : action('reveal', 'Reveal answer', '', 'primary')}</div>` : `<div class="empty"><div class="illustration">${icon('flash', 32)}</div><h2>${state.cards.length ? 'You’re all caught up.' : 'Turn a highlight into something you know.'}</h2><p>${state.cards.length ? 'Come back when your next cards are due.' : 'Open a saved page and choose Study beside a highlight to create your first flashcard.'}</p></div>`}<div class="section-label">Your cards</div><div class="card-list">${state.cards.map((c) => `<div class="row between"><div><strong>${esc(c.question)}</strong><div class="muted small">Next review: ${new Date(c.dueAt).toLocaleString()}</div></div><button class="icon-btn danger" data-delete-card="${c.id}" aria-label="Delete flashcard">${icon('trash')}</button></div>`).join('')}</div>`;
+  content.innerHTML = `<div class="page-heading"><span class="eyebrow">Read. Remember. Repeat.</span><h1>A little learning, every day.</h1><p class="muted">${due.length} cards due · ${state.cards.length} cards in your library</p></div>${card ? `<div class="study-card"><span class="eyebrow">${esc(state.pages.find((p) => p.id === card.pageId)?.title || 'Your research')}</span><div class="question">${esc(card.question)}</div>${studyRevealed ? `<div class="answer">${esc(card.answer)}</div><p class="muted small">How did you do?</p><div class="study-actions"><button data-grade="false">Review again · 10 min</button><button data-grade="true" class="primary">I remembered</button></div>` : action('reveal', 'Reveal answer', '', 'primary')}</div>` : `<div class="empty"><div class="illustration">${icon('flash', 32)}</div><h2>${state.cards.length ? 'You’re all caught up.' : 'Turn a highlight into something you know.'}</h2><p>${state.cards.length ? 'Come back when your next cards are due.' : 'Open a saved page and choose Study beside a highlight to create your first flashcard.'}</p></div>`}<div class="section-label">Your cards</div><div class="card-list">${state.cards.map((c) => `<div class="row between"><div><strong>${esc(c.question)}</strong><div class="muted small">Next review: ${new Date(c.dueAt).toLocaleString()}</div></div><button class="icon-btn danger" data-delete-card="${esc(c.id)}" aria-label="Delete flashcard">${icon('trash')}</button></div>`).join('')}</div>`;
   content.querySelectorAll('[data-grade]').forEach(
     (b) =>
       (b.onclick = async () => {
@@ -910,7 +824,7 @@ function bindActions(root, page) {
 }
 async function handleAction(name, p) {
   if (name === 'clear') {
-    if (view === 'highlights') closeDetail();
+    closeDetail();
     filters = {};
     history.replaceState(null, '', '#' + view);
     render();
@@ -969,7 +883,7 @@ async function handleAction(name, p) {
   }
   if (name === 'reader')
     await extension.tabs.create({
-      url: extension.runtime.getURL(p.type === 'pdf' ? 'pdf.html' : 'reader.html') + '?id=' + p.id,
+      url: viewerUrl(p),
     });
   if (name === 'delete-page')
     confirmAction(
@@ -1073,7 +987,7 @@ function pdfDialog() {
       if (!file?.size && !url) throw new Error('Choose a PDF file or enter its URL');
       let buffer, title, source;
       if (file?.size) {
-        if (file.size > 50 * 1024 * 1024) throw new Error('PDF exceeds 50 MB limit');
+        if (file.size > MAX_PDF_BYTES) throw new Error('PDF exceeds 50 MB limit');
         buffer = await file.arrayBuffer();
         title = file.name;
         source = 'local://pdf/' + crypto.randomUUID();
@@ -1087,15 +1001,18 @@ function pdfDialog() {
             'Site access is required to download this PDF. You can download it yourself and open the local file.',
           );
         el.querySelector('[type=submit]').textContent = 'Downloading…';
-        const response = await fetch(url, { credentials: 'omit' });
-        if (!response.ok) throw new Error('Could not download PDF: ' + response.status);
-        buffer = await response.arrayBuffer();
-        title = decodeURIComponent(u.pathname.split('/').pop()) || 'PDF document';
+        buffer = await downloadPDF(url);
+        title = u.pathname.split('/').pop() || 'PDF document';
+        try {
+          title = decodeURIComponent(title);
+        } catch {
+          /* A URL can contain a literal percent sign in its filename. */
+        }
         source = url;
       }
       const page = await importPDF(buffer, title, source);
       await refresh();
-      await extension.tabs.create({ url: extension.runtime.getURL('pdf.html') + '?id=' + page.id });
+      await extension.tabs.create({ url: viewerUrl(page) });
     },
   });
 }
@@ -1119,11 +1036,18 @@ document.addEventListener('keydown', (e) => {
 const hash = location.hash;
 if (hash === '#settings') view = 'settings';
 else if (hash === '#highlights') view = 'highlights';
+else if (hash === '#bookmarks') view = 'bookmarks';
 else if (hash === '#study') view = 'study';
 else if (hash === '#unfiled') filters = { unfiled: true };
-else if (hash.startsWith('#collection='))
-  filters = { collection: decodeURIComponent(hash.slice(12)) };
-else if (hash.startsWith('#page=')) detailId = decodeURIComponent(hash.slice(6));
+else {
+  try {
+    if (hash.startsWith('#collection='))
+      filters = { collection: decodeURIComponent(hash.slice(12)) };
+    else if (hash.startsWith('#page=')) detailId = decodeURIComponent(hash.slice(6));
+  } catch {
+    history.replaceState(null, '', '#all');
+  }
+}
 function refreshReleaseNotice() {
   showReleaseNotice(app.querySelector('[data-release-notice]')).catch(() => {});
 }

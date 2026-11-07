@@ -215,6 +215,10 @@ export function reviewCard(card, correct, now = Date.now()) {
     updatedAt: now,
   };
 }
+function backupTimestamp(value) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp !== 0 ? timestamp : Date.now();
+}
 export function validateBackup(data) {
   if (!data || data.format !== 'margin-backup' || ![1, VERSION].includes(data.version))
     throw new Error('Not a supported Margin backup (version 1 or 2 required)');
@@ -252,7 +256,7 @@ export function validateBackup(data) {
           }))
         : [],
       createdAt: Number.isFinite(p.createdAt) ? p.createdAt : Date.now(),
-      updatedAt: Number(p.updatedAt) || Date.now(),
+      updatedAt: backupTimestamp(p.updatedAt),
     };
   });
   const seenH = new Set();
@@ -321,7 +325,7 @@ export function validateBackup(data) {
     )
       throw new Error('Invalid flashcard');
     seenC.add(c.id);
-    return { ...c, dueAt: Number(c.dueAt) || Date.now() };
+    return { ...c, dueAt: backupTimestamp(c.dueAt) };
   });
   const assets = (data.assets || []).map((a) => {
     if (
