@@ -76,7 +76,17 @@ jobs:
       - if: matrix.browser == 'brave' && runner.os == 'macOS'
         run: brew install --cask brave-browser
       - if: matrix.browser == 'brave' && runner.os == 'Windows'
-        run: choco install brave --yes --no-progress
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'brave.zip'
+          $folder = Join-Path $env:RUNNER_TEMP 'brave-browser'
+          gh release download --repo brave/brave-browser --pattern 'brave-v*-win32-x64.zip' --output $archive
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Expand-Archive -LiteralPath $archive -DestinationPath $folder
+          $binary = Get-ChildItem -LiteralPath $folder -Filter brave.exe -Recurse -File | Select-Object -First 1
+          if (!$binary) { throw 'Brave executable missing from release archive' }
+          "MARGIN_BRAVE_BINARY=$($binary.FullName)" >> $env:GITHUB_ENV
       - if: matrix.browser == 'brave' && runner.os == 'Linux'
         run: |
           sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
