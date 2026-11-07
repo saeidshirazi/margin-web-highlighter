@@ -7,6 +7,7 @@ import {
   collectionTarget,
   inCollection,
   normalizePreset,
+  MAX_EXPORT_PRESETS,
   presetPages,
 } from '../src/organization.js';
 import { searchPages } from '../src/core.js';
@@ -195,6 +196,38 @@ test('full backups restore presets repeat-safely and reject malformed metadata b
   };
   await assert.rejects(() => db.importBackup(invalid), /research format/);
   assert.ok(!(await db.snapshot()).pages.some((page) => page.id === 'unsafe-import'));
+});
+test('a full preset list does not block restoring research from a backup', async () => {
+  const backup = await db.backupSnapshot();
+  const template = backup.exportPresets[0];
+  const added = [];
+  const url = 'https://example.test/preset-capacity';
+  try {
+    for (let index = backup.exportPresets.length; index < MAX_EXPORT_PRESETS; index++) {
+      const id = 'capacity-' + index;
+      await db.saveExportPreset({ ...template, id, name: 'Capacity ' + index });
+      added.push(id);
+    }
+    const incoming = {
+      ...backup,
+      pages: [{ ...backup.pages[0], id: 'preset-capacity-source', url }],
+      highlights: [],
+      cards: [],
+      assets: [],
+      exportPresets: [{ ...template, id: 'overflow', name: 'Overflow' }],
+    };
+    const { report } = await db.importBackup(incoming, { preview: true });
+    assert.equal(report.sources.added, 1);
+    assert.equal(report.presets.skipped, 1);
+    assert.match(report.attention.examples[0], /preset limit/i);
+    await db.importBackup(incoming, { expected: report });
+    assert.ok(await db.pageByUrl(url));
+    assert.equal((await db.snapshot()).exportPresets.length, MAX_EXPORT_PRESETS);
+  } finally {
+    for (const id of added) await db.deleteExportPreset(id);
+    const page = await db.pageByUrl(url);
+    if (page) await db.removePage(page.id);
+  }
 });
 test('Drive replicas exclude device presets and projections keep each browser’s own presets', async () => {
   const backup = await db.backupSnapshot(),

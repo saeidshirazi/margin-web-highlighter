@@ -70,9 +70,15 @@ test('update checks require opt-in and permission, and alert only for newer stab
   release = { tag_name: 'v0.9.1', draft: false, prerelease: false };
   await updates.onAlarm(alarm);
   assert.equal(badge, '');
+  release = { ...release, tag_name: 'v0.10.0' };
+  await updates.handle('release-check');
   const scheduled = alarm;
-  await updates.handle('release-enable', { enabled: false });
+  assert.equal(badge, 'UP');
+  allowed = false;
+  await updates.schedule();
   await updates.onAlarm(scheduled);
-  assert.equal(requests, 3);
+  assert.equal(requests, 4);
   assert.equal(alarm, undefined);
+  assert.equal(badge, '');
+  assert.deepEqual(storage.releaseUpdate, { enabled: false });
 });

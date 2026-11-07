@@ -13,6 +13,7 @@ import { EXPERIENCE_KEY, experienceState } from './experience.js';
 import { mapReadingPositions, mergeReadingPositions, READING_LIMIT } from './reading-state.js';
 import {
   PRESETS_KEY,
+  MAX_EXPORT_PRESETS,
   normalizePresets,
   normalizePreset,
   collectionPath,
@@ -190,6 +191,11 @@ export async function pageData(url) {
     return { page, highlights, settings: { ...DEFAULT_SETTINGS, ...settings?.value } };
   });
 }
+export function pageByUrl(url) {
+  return transaction(['pages'], 'readonly', ({ pages }) =>
+    request(pages.index('url').get(canonicalUrl(url))),
+  );
+}
 async function savePageRecord(store, input) {
   const url = canonicalUrl(input.url);
   const now = Date.now();
@@ -260,7 +266,7 @@ async function discardNoteDraft(settings, key, token) {
     await request(settings.delete(key));
 }
 
-export async function noteDraft(id, { action, token, text }) {
+export async function noteDraft(id, { action, token, text, previousToken }) {
   const key = noteDraftKey(id);
   if (action === 'get') return (await get('settings', key))?.value ?? null;
   if (typeof token !== 'string' || !token) throw new Error('Invalid note draft token');
@@ -270,8 +276,9 @@ export async function noteDraft(id, { action, token, text }) {
   return transaction(['highlights', 'settings'], 'readwrite', async (s) => {
     const highlight = await request(s.highlights.get(id));
     if (!highlight) throw new Error('Highlight no longer exists');
-    if (text === highlight.note) await request(s.settings.delete(key));
-    else await request(s.settings.put({ id: key, value: { token, text } }));
+    if (text !== highlight.note) await request(s.settings.put({ id: key, value: { token, text } }));
+    else if (typeof previousToken === 'string')
+      await discardNoteDraft(s.settings, key, previousToken);
   });
 }
 
@@ -751,6 +758,11 @@ export async function importBackup(data, { preview = false, expected } = {}) {
         report.presets.skipped++;
         continue;
       }
+      if (presets.length >= MAX_EXPORT_PRESETS) {
+        report.presets.skipped++;
+        note('Export preset limit reached. Skipped: ' + preset.name);
+        continue;
+      }
       let name = preset.name;
       let index = 1;
       while (presets.some((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase()))
@@ -759,7 +771,6 @@ export async function importBackup(data, { preview = false, expected } = {}) {
       presets.push({ ...preset, name });
       report.presets.added++;
     }
-    normalizePresets(presets);
     if (report.presets.added) await write(s.settings, { id: PRESETS_KEY, value: presets });
 
     const localPages = new Map((await request(s.pages.getAll())).map((page) => [page.url, page]));

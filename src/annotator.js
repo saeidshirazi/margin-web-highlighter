@@ -47,7 +47,8 @@ export function createAnnotator({
     box,
     toastTimer,
     lastDeleted,
-    refreshTimer;
+    refreshTimer,
+    focusTimer;
   let repairing, stopSelectionSpeech, stopProofreading;
   function cancelRepair() {
     repairing = null;
@@ -295,10 +296,14 @@ export function createAnnotator({
       field.addEventListener('input', (event) => {
         if (event === restoredInput) return;
         prompt.hidden = true;
+        const previousToken = draftToken;
         draftToken = win.crypto.getRandomValues(new Uint32Array(4)).join('-');
-        onNoteDraft(item.id, { action: 'write', token: draftToken, text: field.value }).catch(
-          error,
-        );
+        onNoteDraft(item.id, {
+          action: 'write',
+          token: draftToken,
+          previousToken,
+          text: field.value,
+        }).catch(error);
       });
       onNoteDraft(item.id, { action: 'get' })
         .then((draft) => {
@@ -383,7 +388,7 @@ export function createAnnotator({
     box.querySelector('[data-delete]').onclick = async () => {
       try {
         lastDeleted = await remove(item.id);
-        close();
+        if (box === editorBox) close();
         await refresh();
         toast('Highlight deleted', true);
       } catch (e) {
@@ -507,11 +512,12 @@ export function createAnnotator({
       if (action === 'panel') onPanel?.();
     },
     focus(id) {
+      clearTimeout(focusTimer);
       const h = data.highlights.find((h) => h.id === id);
       const range = h && locateAnchor(root, h.anchor);
       if (range) {
         range.startContainer.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => {
+        focusTimer = setTimeout(() => {
           const r = range.getBoundingClientRect();
           editor(h, r.left, r.bottom);
         }, 300);
@@ -528,6 +534,7 @@ export function createAnnotator({
     dispose() {
       disposed = true;
       close();
+      clearTimeout(focusTimer);
       clearTimeout(refreshTimer);
       clearTimeout(toastTimer);
       painted?.dispose();
