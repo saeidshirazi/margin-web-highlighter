@@ -1,6 +1,6 @@
 # Margin privacy policy
 
-Effective date: November 7, 2026. Applies to versions 0.8.1 through 0.9.6. Update alerts are available from 0.9.1.
+Effective date: November 7, 2026. Applies to versions 0.8.1 through 0.9.7. Update alerts are available from 0.9.1.
 
 Chrome, Edge, Brave, and Firefox store research in their own extension databases. Official public Chrome, Edge, Brave and Firefox packages use browser-managed web OAuth with a verified random state and exact callback; access tokens are cached only in extension session storage until expiry. Legacy configured Chrome development builds can still use Chrome’s native Google token service. Public OAuth client IDs and public identity keys are intentionally published; they grant no account access without Google consent. No client secret is included. Firefox requests optional website-content, browsing-activity, and identifying-information transmission consent for Drive/in-app Google translation; voice recordings fall within identifying information. No optional transmission is required for local research. See [CROSS-BROWSER.md](CROSS-BROWSER.md) for API differences and installation.
 

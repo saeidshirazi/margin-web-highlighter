@@ -14,18 +14,23 @@ test('website drafts stay separate from saved notes and survive stale save or di
   });
   const id = highlight.id;
   const getDraft = () => db.noteDraft(id, { action: 'get' });
-  const writeDraft = (token, text) => db.noteDraft(id, { action: 'write', token, text });
+  const writeDraft = (token, text, previousToken) =>
+    db.noteDraft(id, { action: 'write', token, text, previousToken });
   try {
     await writeDraft('old', 'First edit');
     await writeDraft('new', 'Newer edit');
     await db.noteDraft(id, { action: 'discard', token: 'old' });
     await db.updateHighlight(id, { note: 'First edit' }, 'old');
+    await writeDraft('reverted', 'First edit', 'old');
     assert.deepEqual(await getDraft(), { token: 'new', text: 'Newer edit' });
     assert.equal(
       (await db.snapshot()).highlights.find((item) => item.id === id).note,
       'First edit',
     );
     await db.updateHighlight(id, { note: 'Newer edit' }, 'new');
+    assert.equal(await getDraft(), null);
+    await writeDraft('edit', 'Unsaved');
+    await writeDraft('undo-edit', 'Newer edit', 'edit');
     assert.equal(await getDraft(), null);
     await writeDraft('empty', '');
     assert.deepEqual(await getDraft(), { token: 'empty', text: '' });

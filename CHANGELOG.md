@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.7
+
+- Preserve newer note drafts when an edit is reverted in another tab.
+- Restore research from backups even when the export preset list is full, and report skipped presets.
+- Clear GitHub update alerts when GitHub access is revoked.
+- Prevent older PDF renders from updating the viewer after a zoom change.
+
 ## 0.9.6
 
 - Save a named library search with its view, filters, and sort order, then run it again on the current library.

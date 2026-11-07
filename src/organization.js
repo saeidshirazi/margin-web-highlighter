@@ -1,4 +1,5 @@
 export const PRESETS_KEY = 'export-presets';
+export const MAX_EXPORT_PRESETS = 20;
 const presetFormats = ['md', 'notion', 'agent', 'html', 'csv', 'clipboard', 'notion-copy', 'print'];
 export function collectionPath(value) {
   return String(value || '')
@@ -68,8 +69,8 @@ export function normalizePreset(input) {
   };
 }
 export function normalizePresets(value = []) {
-  if (!Array.isArray(value) || value.length > 20)
-    throw new Error('Keep at most 20 export presets.');
+  if (!Array.isArray(value) || value.length > MAX_EXPORT_PRESETS)
+    throw new Error(`Keep at most ${MAX_EXPORT_PRESETS} export presets.`);
   const presets = value.map(normalizePreset);
   if (new Set(presets.map((preset) => preset.id)).size !== presets.length)
     throw new Error('Duplicate export preset IDs.');

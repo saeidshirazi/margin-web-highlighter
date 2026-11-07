@@ -82,7 +82,7 @@ async function handle(type, p, sender) {
     }
     if (type === 'open-capture') {
       const page =
-        (await db.pageData(url)).page ||
+        (await db.pageByUrl(url)) ||
         (await db.savePage({ url, title: p.title || sender.tab?.title || url }));
       p = { ...p, pageId: page.id, tabId: sender.tab?.id };
       if (p.highlightId && (await db.get('highlights', p.highlightId))?.pageId !== page.id)
@@ -98,17 +98,16 @@ async function handle(type, p, sender) {
         'restore-highlight',
       ].includes(type)
     ) {
-      const current = await db.pageData(url);
+      const current = await db.pageByUrl(url);
       const pageId =
         type === 'add-highlight'
           ? p.pageId
           : type === 'restore-highlight'
             ? p.item?.pageId
             : (await db.get('highlights', p.id))?.pageId;
-      if (!current.page || current.page.id !== pageId)
-        throw new Error('Highlight belongs to another page');
+      if (!current || current.id !== pageId) throw new Error('Highlight belongs to another page');
     }
-    if (type === 'open-reader' && p.id !== (await db.pageData(url)).page?.id)
+    if (type === 'open-reader' && p.id !== (await db.pageByUrl(url))?.id)
       throw new Error('Save this page first');
   }
   switch (type) {
@@ -310,6 +309,7 @@ extension.alarms.onAlarm.addListener((alarm) => drive.onAlarm(alarm).catch(() =>
 extension.alarms.onAlarm.addListener((alarm) => releaseUpdates.onAlarm(alarm)?.catch(() => {}));
 extension.runtime.onStartup.addListener(() => drive.schedule().catch(() => {}));
 extension.runtime.onStartup.addListener(() => releaseUpdates.schedule().catch(() => {}));
+extension.permissions.onRemoved.addListener(() => releaseUpdates.schedule().catch(() => {}));
 extension.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.revision) drive.schedule().catch(() => {});
 });

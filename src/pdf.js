@@ -41,8 +41,11 @@ async function init() {
   root.querySelector('#zoom').onchange = async (e) => {
     const current = currentPage();
     zoom = +e.target.value;
-    await renderPages();
-    goToPage(current);
+    try {
+      if (await renderPages()) goToPage(current);
+    } catch (error) {
+      toast(error.message);
+    }
   };
   await renderPages();
   if (!page.text) indexText().catch((e) => toast('PDF text could not be indexed: ' + e.message));
@@ -117,10 +120,11 @@ async function renderPages() {
   const pages = root.querySelector('#pages');
   pages.replaceChildren();
   observer = new IntersectionObserver(
-    (entries) => {
+    (entries, currentObserver) => {
+      if (gen !== generation) return;
       for (const entry of entries)
         if (entry.isIntersecting) {
-          observer.unobserve(entry.target);
+          currentObserver.unobserve(entry.target);
           renderOne(+entry.target.dataset.pdfPage, entry.target, gen).catch((e) => {
             entry.target.textContent = e.message;
           });
@@ -141,6 +145,7 @@ async function renderPages() {
     pages.append(el);
     observer.observe(el);
   }
+  return true;
 }
 async function renderOne(n, el, gen) {
   const p = await pdf.getPage(n);
@@ -160,6 +165,7 @@ async function renderOne(n, el, gen) {
   }).promise;
   if (gen !== generation) return;
   const text = await p.getTextContent();
+  if (gen !== generation) return;
   const layer = document.createElement('div');
   layer.className = 'textLayer';
   layer.style.setProperty('--scale-factor', zoom);
@@ -167,12 +173,12 @@ async function renderOne(n, el, gen) {
   layer.style.setProperty('--user-unit', p.userUnit || 1);
   el.append(layer);
   await new pdfjs.TextLayer({ textContentSource: text, container: layer, viewport }).render();
+  if (gen !== generation) return;
   if (!text.items.some((i) => i.str?.trim()))
     root.querySelector('#pdf-status').textContent =
       'Page ' +
       n +
       ' has no selectable text. Scanned PDFs require an existing text layer (OCR is not included).';
-  if (gen !== generation) return;
   const controller = createAnnotator({
     root: layer,
     load: async () => {

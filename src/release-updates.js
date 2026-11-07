@@ -41,6 +41,10 @@ export function createReleaseUpdates(browser = extension, request = globalThis.f
         await browser.alarms.create(alarmName, { periodInMinutes: 1440 });
     } else {
       await browser.alarms.clear(alarmName);
+      if (state.enabled) {
+        state = { enabled: false };
+        await browser.storage.local.set({ [releaseUpdateKey]: state });
+      }
     }
     const show = state.enabled && newerVersion(state.latest, installed);
     await browser.action.setBadgeText({ text: show ? 'UP' : '' });
