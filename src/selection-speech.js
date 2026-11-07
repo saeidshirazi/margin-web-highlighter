@@ -27,7 +27,7 @@ export function addSelectionSpeech(toolbar, trigger, options) {
   panel.className = 'selection-speech';
   panel.id = 'margin-selection-speech';
   panel.hidden = true;
-  panel.innerHTML = `<p class="muted" data-pronunciation-language></p><label>Pronunciation voice <select></select></label><div class="row"><button type="button" data-stop-speech disabled>Stop</button></div><p class="muted" role="status"></p>`;
+  panel.innerHTML = `<p class="muted" data-pronunciation-language></p><label>Pronunciation voice <select></select></label><div class="row"><button type="button" data-repeat-speech disabled>Repeat</button><button type="button" data-stop-speech disabled>Stop</button></div><p class="muted" role="status"></p>`;
   toolbar.append(panel);
   trigger.setAttribute('aria-controls', panel.id);
   trigger.setAttribute('aria-expanded', 'false');
@@ -35,17 +35,21 @@ export function addSelectionSpeech(toolbar, trigger, options) {
   const languageLabel = panel.querySelector('[data-pronunciation-language]');
   const status = panel.querySelector('[role=status]');
   const stop = panel.querySelector('[data-stop-speech]');
+  const repeat = panel.querySelector('[data-repeat-speech]');
   const preferred = locale(preferredVoice) || locale('en-US');
   const declared = locale(sourceLanguage);
   let desired = preferred;
   let voices = [];
-  let utterance, closed;
-  const cancel = () => {
-    if (utterance) {
-      utterance = undefined;
-      synth.cancel();
-    }
+  let utterance, playbackTimer, closed;
+  const clearPlayback = () => {
+    win.clearInterval(playbackTimer);
+    utterance = undefined;
     stop.disabled = true;
+  };
+  const cancel = () => {
+    const wasPlaying = !!utterance;
+    clearPlayback();
+    if (wasPlaying) synth.cancel();
   };
   const loadVoices = () => {
     const previous = select.value;
@@ -62,6 +66,7 @@ export function addSelectionSpeech(toolbar, trigger, options) {
       voices.find((entry) => locale(entry.lang)?.baseName === desired.baseName) ||
       voices.find((entry) => locale(entry.lang)?.language === desired.language);
     select.value = voice?.voiceURI || '';
+    repeat.disabled = !voice || text.length > 220;
     if (!utterance) {
       status.textContent = voices.length
         ? voice
@@ -82,20 +87,35 @@ export function addSelectionSpeech(toolbar, trigger, options) {
     utterance = playback;
     playback.voice = voice;
     playback.lang = voice.lang;
-    playback.onend = () => {
+    let started = false;
+    const queuedAt = win.performance.now();
+    const finish = (message) => {
       if (utterance !== playback) return;
-      utterance = undefined;
-      stop.disabled = true;
-      status.textContent = '';
+      clearPlayback();
+      status.textContent = message;
     };
-    playback.onerror = (event) => {
-      if (utterance !== playback) return;
-      playback.onend();
-      status.textContent = `The voice could not play (${event.error}).`;
+    playback.onstart = () => {
+      started = true;
     };
+    playback.onend = () => finish('Pronunciation finished.');
+    playback.onerror = (event) => finish(`The voice could not play (${event.error}).`);
     stop.disabled = false;
     status.textContent = 'Pronouncing selection…';
-    synth.speak(playback);
+    // Some system voices go idle without sending the utterance's end event.
+    playbackTimer = win.setInterval(() => {
+      if (synth.speaking) {
+        started = true;
+        return;
+      }
+      if (synth.pending) return;
+      if (started) finish('Pronunciation finished.');
+      else if (win.performance.now() - queuedAt >= 2000) finish('Ready to repeat.');
+    }, 250);
+    try {
+      synth.speak(playback);
+    } catch {
+      finish('The voice could not play.');
+    }
   }
   trigger.onclick = async () => {
     if (!panel.hidden) return speak();
@@ -123,7 +143,11 @@ export function addSelectionSpeech(toolbar, trigger, options) {
     reposition();
     speak();
   };
-  select.onchange = () => speak();
+  select.onchange = () => {
+    repeat.disabled = !select.value || text.length > 220;
+    speak();
+  };
+  repeat.onclick = speak;
   stop.onclick = () => {
     cancel();
     status.textContent = 'Stopped.';

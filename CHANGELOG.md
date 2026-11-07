@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.8
+
+- The pronunciation toolbar detects when playback finishes and offers Repeat with the selected voice.
+
 ## 0.9.7
 
 - Preserve newer note drafts when an edit is reverted in another tab.
