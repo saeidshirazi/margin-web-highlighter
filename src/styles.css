@@ -661,6 +661,7 @@ h3 {
 }
 .annotation .annotation-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 3px;
   justify-content: flex-end;
   margin-top: 10px;

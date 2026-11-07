@@ -1,6 +1,10 @@
-# Features in Margin 0.8.1
+# Features in Margin 0.9.0
 
 [Install](docs/INSTALL.md) · [Getting started](docs/GETTING-STARTED.md) · [Browser compatibility and tests](CROSS-BROWSER.md)
+
+## New in 0.9
+
+The Highlights view brings individual quotes and their notes into one searchable list. Filter by color, tag, source type, collection, or bookmark status. Open a result to go to the annotation or PDF page. Copy a quote with its source title, web address when available, and PDF page number when known.
 
 ## New in 0.8
 

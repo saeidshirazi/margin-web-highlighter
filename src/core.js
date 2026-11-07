@@ -92,6 +92,14 @@ export function searchMatch(page, highlights, query) {
     match('source', [page.title, page.url, ...page.tags].join(' '))
   );
 }
+function matchesSourceFilters(page, filters) {
+  return (
+    (!filters.collection || inCollection(page.collection, filters.collection)) &&
+    (!filters.unfiled || !collectionPath(page.collection)) &&
+    (!filters.bookmarked || page.bookmarked) &&
+    (!filters.type || page.type === filters.type)
+  );
+}
 export function searchPages(pages, highlights, filters = {}) {
   const query = (filters.query || '').trim();
   const byPage = new Map();
@@ -102,13 +110,10 @@ export function searchPages(pages, highlights, filters = {}) {
   return pages
     .filter((page) => {
       const hs = byPage.get(page.id) || [];
-      if (filters.collection && !inCollection(page.collection, filters.collection)) return false;
-      if (filters.unfiled && collectionPath(page.collection)) return false;
-      if (filters.bookmarked && !page.bookmarked) return false;
+      if (!matchesSourceFilters(page, filters)) return false;
       if (filters.tag && ![...page.tags, ...hs.flatMap((h) => h.tags)].includes(filters.tag))
         return false;
       if (filters.color && !hs.some((h) => h.color === filters.color)) return false;
-      if (filters.type && page.type !== filters.type) return false;
       return !query || !!searchMatch(page, hs, query);
     })
     .sort((a, b) =>
@@ -118,6 +123,32 @@ export function searchPages(pages, highlights, filters = {}) {
           ? a.updatedAt - b.updatedAt
           : b.updatedAt - a.updatedAt,
     );
+}
+export function searchHighlights(pages, highlights, filters = {}) {
+  const sources = new Map(pages.map((page) => [page.id, page]));
+  const query = (filters.query || '').trim();
+  const expression = query ? new RegExp(RegExp.escape(query), 'iu') : null;
+  return highlights
+    .flatMap((highlight) => {
+      const page = sources.get(highlight.pageId);
+      if (!page || !matchesSourceFilters(page, filters)) return [];
+      if (filters.color && highlight.color !== filters.color) return [];
+      const tags = [...page.tags, ...highlight.tags];
+      if (filters.tag && !tags.includes(filters.tag)) return [];
+      if (
+        expression &&
+        ![highlight.text, highlight.note, page.title, page.url, ...tags].some((text) =>
+          expression.test(text || ''),
+        )
+      )
+        return [];
+      return [{ page, highlight }];
+    })
+    .sort((a, b) => {
+      if (filters.sort === 'title') return a.page.title.localeCompare(b.page.title);
+      const difference = a.highlight.updatedAt - b.highlight.updatedAt;
+      return filters.sort === 'oldest' ? difference : -difference;
+    });
 }
 export function toMarkdown(pages, highlights) {
   return pages

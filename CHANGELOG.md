@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.0
+
+- Browse individual quotes and notes across sources in the new Highlights view. Search and combine filters, then open the matching annotation or PDF page.
+- Copy a quote with its source title, web address when available, and PDF page number when known.
+
 ## 0.8.3
 
 - Translate selections in Margin without an API key, with a local cache and optional LibreTranslate fallback.

@@ -36,6 +36,8 @@ try {
   const source = await api('save-page', {
     url: 'https://example.test/research-flow',
     title: 'Research article',
+    collection: 'Research/Methods',
+    bookmarked: true,
     text: [...paragraphs, quote, tail, french].join('\n\n'),
     article: [...paragraphs, quote, tail, french].map((part) => '<p>' + part + '</p>').join(''),
   });
@@ -245,6 +247,79 @@ try {
   await expect(resumedPdf.locator('#page-number')).toHaveValue('2');
   await resumedPdf.close();
 
+  const pdfSource = (await api('snapshot')).pages.find((page) => page.type === 'pdf');
+  const pdfQuote = 'PdfNeedle is on page two.';
+  const pdfHighlight = await api('add-highlight', {
+    pageId: pdfSource.id,
+    text: pdfQuote,
+    color: '#ffe08a',
+    anchor: { page: 2, exact: pdfQuote, quads: [] },
+  });
+  const otherQuote = 'A separate quote from the same source.';
+  await api('add-highlight', {
+    pageId: source.id,
+    text: otherQuote,
+    color: '#a8e6cf',
+    anchor: { exact: otherQuote },
+    tags: ['separate'],
+  });
+  await library.reload();
+  await library.locator('[data-view=highlights]').click();
+  await library.reload();
+  const matches = library.locator('.library-highlight');
+  await expect(matches).toHaveCount(3);
+  await search.fill('searchnote');
+  await expect(matches).toHaveCount(1);
+  await expect(matches).toContainText(quote);
+  await library.getByLabel('Filter by tag').selectOption('separate');
+  await expect(matches).toHaveCount(0);
+  await library.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(matches).toHaveCount(3);
+  await library.getByLabel('Filter by collection').selectOption('path:Research');
+  await expect(matches).toHaveCount(2);
+  await library.getByRole('button', { name: 'Filter #a8e6cf' }).click();
+  await expect(matches).toHaveCount(1);
+  await expect(matches).toContainText(otherQuote);
+  await library.getByRole('button', { name: 'Clear filters' }).click();
+  await library.getByLabel('Bookmarked sources').check();
+  await expect(matches).toHaveCount(2);
+  await library.getByRole('button', { name: 'Clear filters' }).click();
+
+  await library.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, 'writeText', {
+      value: async (text) => {
+        globalThis.copiedQuote = text;
+      },
+    });
+  });
+  const readCopiedQuote = () => library.evaluate(() => globalThis.copiedQuote);
+  const webResult = matches.filter({ hasText: quote });
+  await webResult.getByRole('button', { name: 'Copy quote with source' }).click();
+  const expectedWebCopy = `${quote}\n\n${source.title}\n${source.url}`;
+  await expect.poll(readCopiedQuote).toBe(expectedWebCopy);
+  await webResult.getByRole('button', { name: 'Open highlight' }).click();
+  const annotation = library.locator(`[data-annotation="${highlight.id}"]`);
+  await expect(annotation).toBeFocused();
+  await library.evaluate(() => {
+    globalThis.copiedQuote = '';
+  });
+  await annotation.getByRole('button', { name: 'Copy quote with source' }).click();
+  await expect.poll(readCopiedQuote).toBe(expectedWebCopy);
+  await library.getByRole('button', { name: 'Close details', exact: true }).click();
+
+  await library.getByLabel('Filter by document type').selectOption('pdf');
+  await expect(matches).toHaveCount(1);
+  await expect(matches).toContainText('PDF page 2');
+  await matches.getByRole('button', { name: 'Copy quote with source' }).click();
+  await expect.poll(readCopiedQuote).toBe(`${pdfQuote}\n\n${pdfSource.title} · PDF page 2`);
+  const [highlightedPdf] = await Promise.all([
+    context.waitForEvent('page'),
+    matches.getByRole('button', { name: 'Open highlight' }).click(),
+  ]);
+  await expect(highlightedPdf).toHaveURL(new RegExp('highlight=' + pdfHighlight.id));
+  await expect(highlightedPdf.locator('#page-number')).toHaveValue('2');
+  await highlightedPdf.close();
+
   const data = await api('backup');
   data.pages.push({
     id: 'incoming',
@@ -286,7 +361,7 @@ try {
   assert.equal((await api('snapshot')).pages.length, 3);
   assert.deepEqual(errors, []);
   console.log(
-    `PASS ${browserTarget}: automatic pronunciation language, US/UK voices, translation, offline points, explanation fixture, search jumps, resume, and encrypted restore preview.`,
+    `PASS ${browserTarget}: pronunciation, translation, research tools, search, resume, highlights view, quote copying, and encrypted restore preview.`,
   );
 } finally {
   await context.close();

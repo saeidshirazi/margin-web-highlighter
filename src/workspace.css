@@ -716,3 +716,9 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.library-highlight {
+  overflow-wrap: anywhere;
+}
+.library-highlight h2 {
+  margin: 0 0 8px;
+}
