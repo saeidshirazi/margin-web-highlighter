@@ -17,6 +17,8 @@ You can also select text and press **Alt S**, or right-click → Margin’s high
 
 Search the library for a word from a title, URL, quote, note, or captured source text. Filter by color, tag, type, bookmark, or collection. Open a source to see its notes and quotes beside the library. Collapse details to get more space, or drag the divider to resize them. Collection names use paths such as `Research/Reading`. Parent folders appear automatically, and choosing a parent includes its subcollections. [Manage collections and save export presets](ORGANIZATION.md).
 
+Choose **Highlights** in the library sidebar to browse individual quotes and their notes. Search by quote, highlight note, tag, or source title, and combine filters to narrow the list. **Open highlight** takes you to the saved annotation or to its location in the PDF viewer. **Copy quote with source** copies the quote, source title, web address when available, and PDF page number when known. You can also copy from the source details pane. **Export sources** exports the complete sources represented in the filtered list.
+
 ## Save an offline article
 
 On the original article, choose **Margin → Save for offline reading**. In the library, open the source → **Read offline**. Your saved copy has shared highlights and adjustable reading settings. The saved article omits site scripts, images, styling, and embedded media; it is a reading copy, not an exact page archive.

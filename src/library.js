@@ -2,7 +2,7 @@ import { extension, browserTarget } from './platform.js';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { api } from './api.js';
-import { searchMatch, searchPages, safeUrl, canonicalUrl } from './core.js';
+import { searchHighlights, searchMatch, searchPages, safeUrl, canonicalUrl } from './core.js';
 import { inCollection, collectionPath, collectionTree, presetPages } from './organization.js';
 import {
   mountCollections,
@@ -69,16 +69,17 @@ function render() {
   detailScroll = document.querySelector('.drawer')?.scrollTop || detailScroll;
   app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><span class="brand-mark">${icon('logo', 25)}</span><div>margin<small>Ideas worth keeping</small></div></div><div class="nav">${[
     ['all', 'All pages', 'grid', state.pages.length],
+    ['highlights', 'Highlights', 'tag', state.highlights.length],
     ['bookmarks', 'Bookmarks', 'bookmark', state.pages.filter((p) => p.bookmarked).length],
     ['study', 'Flashcards', 'flash', state.cards.length],
   ]
     .map(
       ([v, t, i, n]) =>
-        `<button data-view="${v}" class="${view === v ? 'active' : ''}">${icon(i)}${t}<span class="count">${n}</span></button>`,
+        `<button data-view="${v}" class="${view === v ? 'active' : ''}" ${view === v ? 'aria-current="page"' : ''}>${icon(i)}${t}<span class="count">${n}</span></button>`,
     )
     .join(
       '',
-    )}</div><div class="nav-label eyebrow">Collections<button class="icon-btn" data-action="collection" aria-label="New collection">${icon('plus', 14)}</button></div><div class="collections nav" data-collection-tree aria-label="Collections"></div><div class="sidebar-foot"><div class="nav"><button data-view="settings" class="${view === 'settings' ? 'active' : ''}">${icon('settings')}Settings & backups</button></div><div class="local-badge"><i class="dot"></i>Local first. Always yours.</div></div></aside><main class="workspace ${detailId && !detailsCollapsed ? 'details-open' : ''}" style="--details-width:${state.settings.detailWidth}px"><header class="topbar"><div class="search">${icon('search')}<input id="search" aria-label="Search library" placeholder="Search highlights, notes, and pages…" value="${esc(filters.query || '')}"></div><span class="key">Ctrl K</span>${action('export', 'Export', 'arrow')}${action('add', 'Add to library', 'plus', 'primary')}</header><div class="content" id="content"></div></main></div>`;
+    )}</div><div class="nav-label eyebrow">Collections<button class="icon-btn" data-action="collection" aria-label="New collection">${icon('plus', 14)}</button></div><div class="collections nav" data-collection-tree aria-label="Collections"></div><div class="sidebar-foot"><div class="nav"><button data-view="settings" class="${view === 'settings' ? 'active' : ''}">${icon('settings')}Settings & backups</button></div><div class="local-badge"><i class="dot"></i>Local first. Always yours.</div></div></aside><main class="workspace ${detailId && !detailsCollapsed ? 'details-open' : ''}" style="--details-width:${state.settings.detailWidth}px"><header class="topbar"><div class="search">${icon('search')}<input id="search" aria-label="Search library" placeholder="Search highlights, notes, and pages…" value="${esc(filters.query || '')}"></div><span class="key">Ctrl K</span>${action('export', view === 'highlights' ? 'Export sources' : 'Export', 'arrow')}${action('add', 'Add to library', 'plus', 'primary')}</header><div class="content" id="content"></div></main></div>`;
   renderContent();
   const search = app.querySelector('#search');
   search.oninput = () => {
@@ -122,50 +123,13 @@ function renderContent() {
   const content = app.querySelector('#content');
   if (view === 'settings') return renderSettings(content);
   if (view === 'study') return renderStudy(content);
+  if (view === 'highlights') return renderHighlights(content);
   const pages = searchPages(state.pages, state.highlights, {
     ...filters,
     bookmarked: view === 'bookmarks',
   });
-  const tags = [
-    ...new Set([...state.pages.flatMap((p) => p.tags), ...state.highlights.flatMap((h) => h.tags)]),
-  ].sort();
-  content.innerHTML = `<div class="page-heading"><span class="eyebrow">Your personal reading space</span><h1>${esc(filters.collection || (filters.unfiled ? 'Unfiled sources' : view === 'bookmarks' ? 'Saved for later' : 'Keep what stays with you.'))}</h1><p class="heading-description">${filters.collection ? 'Includes sources in this collection and its subcollections.' : filters.unfiled ? 'Sources without collection labels. Your notes and highlights are kept.' : 'Your highlights, notes, and sources. Connected by curiosity. Kept on your device.'}</p><div class="library-metrics"><div><span>${icon('book', 19)}</span><strong>${state.pages.length}</strong><small>Saved documents</small></div><div><span>${icon('tag', 19)}</span><strong>${state.highlights.length}</strong><small>Highlights collected</small></div><div><span>${icon('folder', 19)}</span><strong>${collectionTree(state.pages).length}</strong><small>Collections</small></div><div><span>${icon('flash', 19)}</span><strong>${state.cards.filter((c) => c.dueAt <= Date.now()).length}</strong><small>Cards to review</small></div></div></div><section class="transfer-strip"><div><span class="eyebrow">From reading to doing</span><strong>Take your ideas to the next step.</strong></div><div class="row wrap">${action('export-notion', 'Notion', 'external')}${action('export-markdown', 'Markdown', 'file')}${action('export-agent', 'For AI agents', 'flash')}${action('import-markdown', 'Import .md', 'plus', 'ghost')}${action('voice-note', 'Voice note', 'mic')}</div></section><div class="toolbar"><select id="type-filter" aria-label="Filter by document type"><option value="">All types</option>${[
-    ['web', 'Web pages'],
-    ['pdf', 'PDF documents'],
-    ['youtube', 'YouTube'],
-    ['note', 'Notes'],
-  ]
-    .map(([v, t]) => `<option value="${v}" ${filters.type === v ? 'selected' : ''}>${t}</option>`)
-    .join(
-      '',
-    )}</select><select id="tag-filter" aria-label="Filter by tag"><option value="">All tags</option>${tags.map((t) => `<option ${filters.tag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><div class="color-filter" aria-label="Filter by color">${[...new Set([...state.settings.colors, ...state.highlights.map((h) => h.color)])].map((c) => `<button class="swatch ${filters.color === c ? 'active' : ''}" data-color="${c}" style="background:${c}" aria-label="Filter ${c}" title="Filter ${c}"></button>`).join('')}</div><div class="spacer"></div>${Object.values(filters).some(Boolean) ? action('clear', 'Clear filters', '', 'ghost') : ''}<select id="sort" aria-label="Sort pages">${[
-    ['newest', 'Recently updated'],
-    ['oldest', 'Oldest first'],
-    ['title', 'Title A–Z'],
-  ]
-    .map(([v, t]) => `<option value="${v}" ${filters.sort === v ? 'selected' : ''}>${t}</option>`)
-    .join(
-      '',
-    )}</select></div>${selected.size ? `<div class="hint row" style="margin:0 0 20px"><strong>${selected.size} selected</strong>${action('move', 'Move to collection', 'folder')}${action('export', 'Export selected', 'arrow')}${action('delete-selected', 'Delete', 'trash', 'danger')}</div>` : ''}<div class="view-controls" aria-label="Library layout"><button data-layout="grid" aria-label="Grid view" aria-pressed="${state.settings.libraryLayout !== 'list'}">${icon('grid', 16)}</button><button data-layout="list" aria-label="List view" aria-pressed="${state.settings.libraryLayout === 'list'}">${icon('book', 16)}</button><span class="muted small">${pages.length} shown</span></div><div class="grid ${state.settings.libraryLayout === 'list' ? 'is-list' : ''}">${pages.map(card).join('')}</div>${pages.length ? '' : `<div class="empty"><div class="illustration">${icon('book', 34)}</div><h2>${state.pages.length ? 'No pages match these filters' : 'Your next great idea starts here.'}</h2><p>${state.pages.length ? 'Try another search, tag, or color. Your saved pages are still here.' : 'Select text on any website and choose a color. Your highlights, notes, and pages will be waiting right here.'}</p><div class="row">${action(state.pages.length ? 'clear' : 'guide', state.pages.length ? 'Clear filters' : 'How to highlight', 'book', 'primary')}${action('pdf', 'Open a PDF', 'file')}</div></div>`}<div class="hint">${icon('bookmark', 19)}<span><strong>A small habit, a growing library.</strong> Select a passage, choose a color, and make it yours. <span class="key">Alt S</span> highlights instantly.</span></div>`;
-  content.querySelector('#type-filter').onchange = (e) => {
-    filters.type = e.target.value;
-    renderContent();
-  };
-  content.querySelector('#tag-filter').onchange = (e) => {
-    filters.tag = e.target.value;
-    renderContent();
-  };
-  content.querySelector('#sort').onchange = (e) => {
-    filters.sort = e.target.value;
-    renderContent();
-  };
-  content.querySelectorAll('[data-color]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        filters.color = filters.color === b.dataset.color ? '' : b.dataset.color;
-        renderContent();
-      }),
-  );
+  content.innerHTML = `<div class="page-heading"><span class="eyebrow">Your personal reading space</span><h1>${esc(filters.collection || (filters.unfiled ? 'Unfiled sources' : view === 'bookmarks' ? 'Saved for later' : 'Keep what stays with you.'))}</h1><p class="heading-description">${filters.collection ? 'Includes sources in this collection and its subcollections.' : filters.unfiled ? 'Sources without collection labels. Your notes and highlights are kept.' : 'Your highlights, notes, and sources. Connected by curiosity. Kept on your device.'}</p><div class="library-metrics"><div><span>${icon('book', 19)}</span><strong>${state.pages.length}</strong><small>Saved documents</small></div><div><span>${icon('tag', 19)}</span><strong>${state.highlights.length}</strong><small>Highlights collected</small></div><div><span>${icon('folder', 19)}</span><strong>${collectionTree(state.pages).length}</strong><small>Collections</small></div><div><span>${icon('flash', 19)}</span><strong>${state.cards.filter((c) => c.dueAt <= Date.now()).length}</strong><small>Cards to review</small></div></div></div><section class="transfer-strip"><div><span class="eyebrow">From reading to doing</span><strong>Take your ideas to the next step.</strong></div><div class="row wrap">${action('export-notion', 'Notion', 'external')}${action('export-markdown', 'Markdown', 'file')}${action('export-agent', 'For AI agents', 'flash')}${action('import-markdown', 'Import .md', 'plus', 'ghost')}${action('voice-note', 'Voice note', 'mic')}</div></section>${libraryToolbar()}${selected.size ? `<div class="hint row" style="margin:0 0 20px"><strong>${selected.size} selected</strong>${action('move', 'Move to collection', 'folder')}${action('export', 'Export selected', 'arrow')}${action('delete-selected', 'Delete', 'trash', 'danger')}</div>` : ''}<div class="view-controls" aria-label="Library layout"><button data-layout="grid" aria-label="Grid view" aria-pressed="${state.settings.libraryLayout !== 'list'}">${icon('grid', 16)}</button><button data-layout="list" aria-label="List view" aria-pressed="${state.settings.libraryLayout === 'list'}">${icon('book', 16)}</button><span class="muted small">${pages.length} shown</span></div><div class="grid ${state.settings.libraryLayout === 'list' ? 'is-list' : ''}">${pages.map(card).join('')}</div>${pages.length ? '' : `<div class="empty"><div class="illustration">${icon('book', 34)}</div><h2>${state.pages.length ? 'No pages match these filters' : 'Your next great idea starts here.'}</h2><p>${state.pages.length ? 'Try another search, tag, or color. Your saved pages are still here.' : 'Select text on any website and choose a color. Your highlights, notes, and pages will be waiting right here.'}</p><div class="row">${action(state.pages.length ? 'clear' : 'guide', state.pages.length ? 'Clear filters' : 'How to highlight', 'book', 'primary')}${action('pdf', 'Open a PDF', 'file')}</div></div>`}<div class="hint">${icon('bookmark', 19)}<span><strong>A small habit, a growing library.</strong> Select a passage, choose a color, and make it yours. <span class="key">Alt S</span> highlights instantly.</span></div>`;
+  bindLibraryFilters(content);
   content.querySelectorAll('[data-page]').forEach((b) => {
     b.onclick = () => openDetail(b.dataset.page);
     b.onkeydown = (e) => {
@@ -231,6 +195,125 @@ function renderContent() {
     content.prepend(notice);
   }
   bindActions(content);
+}
+function renderHighlights(content) {
+  const matches = searchHighlights(state.pages, state.highlights, filters);
+  const byId = new Map(matches.map((entry) => [entry.highlight.id, entry]));
+  const extra = `<select id="highlight-collection" aria-label="Filter by collection"><option value="">All collections</option><option value="unfiled" ${filters.unfiled ? 'selected' : ''}>Unfiled</option>${collectionTree(
+    state.pages,
+  )
+    .map(
+      ({ path }) =>
+        `<option value="path:${esc(path)}" ${filters.collection === path ? 'selected' : ''}>${esc(path)}</option>`,
+    )
+    .join(
+      '',
+    )}</select><label class="row"><input id="highlight-bookmarked" type="checkbox" ${filters.bookmarked ? 'checked' : ''}> Bookmarked sources</label>`;
+  content.innerHTML = `<div class="page-heading"><h1>Highlights</h1><p class="heading-description">Browse quotes and notes across your saved sources.</p></div>${libraryToolbar(extra)}<p class="muted small" role="status">${matches.length} ${matches.length === 1 ? 'highlight' : 'highlights'} shown</p>${
+    matches.length
+      ? matches
+          .map(({ page, highlight }) => {
+            const location = pdfLocation(page, highlight);
+            return `<article class="annotation library-highlight" style="--highlight:${esc(highlight.color)}"><h2 class="small">${esc(page.title)}${location ? ' · ' + location : ''}</h2><blockquote dir="auto">${esc(highlight.text)}</blockquote>${highlight.note ? `<div class="note-preview">${markdown(highlight.note)}</div>` : ''}<div class="tags">${highlight.tags.map((tag) => `<span class="tag">${esc(tag)}</span>`).join('')}</div><div class="annotation-actions"><button type="button" data-open-highlight="${esc(highlight.id)}">Open highlight</button>${copyQuoteButton(highlight)}</div></article>`;
+          })
+          .join('')
+      : `<div class="empty"><h2>${state.highlights.length ? 'No highlights match these filters' : 'No highlights yet'}</h2><p>${state.highlights.length ? 'Try another search or clear the filters.' : 'Select a passage on a web page or PDF to save your first highlight.'}</p></div>`
+  }`;
+  bindLibraryFilters(content);
+  content.querySelector('#highlight-collection').onchange = (event) => {
+    const value = event.target.value;
+    filters.unfiled = value === 'unfiled';
+    filters.collection = value.startsWith('path:') ? value.slice(5) : '';
+    renderContent();
+    content.querySelector('#highlight-collection').focus();
+  };
+  content.querySelector('#highlight-bookmarked').onchange = (event) => {
+    filters.bookmarked = event.target.checked;
+    renderContent();
+    content.querySelector('#highlight-bookmarked').focus();
+  };
+  for (const button of content.querySelectorAll('[data-open-highlight]')) {
+    button.onclick = async () => {
+      const { page, highlight } = byId.get(button.dataset.openHighlight);
+      try {
+        await openLibraryMatch(page, { kind: 'highlight', highlightId: highlight.id });
+      } catch (error) {
+        toast(error.message);
+      }
+    };
+  }
+  bindCopyQuotes(content, byId);
+  bindActions(content);
+}
+function pdfLocation(page, highlight) {
+  const number = highlight.anchor?.page;
+  return page.type === 'pdf' && Number.isInteger(number) && number > 0 ? `PDF page ${number}` : '';
+}
+function copyQuoteButton(highlight) {
+  return `<button type="button" data-copy-quote="${esc(highlight.id)}">Copy quote with source</button>`;
+}
+function bindCopyQuotes(root, byId) {
+  for (const button of root.querySelectorAll('[data-copy-quote]')) {
+    button.onclick = async () => {
+      const { page, highlight } = byId.get(button.dataset.copyQuote);
+      const attribution = [page.title, pdfLocation(page, highlight)].filter(Boolean).join(' · ');
+      const source = safeUrl(page.url);
+      const text = [highlight.text, '', attribution];
+      if (source.startsWith('https://') || source.startsWith('http://')) text.push(source);
+      try {
+        await navigator.clipboard.writeText(text.join('\n'));
+        toast('Quote and source copied.');
+      } catch {
+        toast(
+          'Could not copy the quote. Check your browser’s clipboard permissions and try again.',
+        );
+      }
+    };
+  }
+}
+function libraryToolbar(extra = '') {
+  const tags = [
+    ...new Set([...state.pages.flatMap((p) => p.tags), ...state.highlights.flatMap((h) => h.tags)]),
+  ].sort();
+  return `<div class="toolbar"><select id="type-filter" aria-label="Filter by document type"><option value="">All types</option>${[
+    ['web', 'Web pages'],
+    ['pdf', 'PDF documents'],
+    ['youtube', 'YouTube'],
+    ['note', 'Notes'],
+  ]
+    .map(([v, t]) => `<option value="${v}" ${filters.type === v ? 'selected' : ''}>${t}</option>`)
+    .join(
+      '',
+    )}</select><select id="tag-filter" aria-label="Filter by tag"><option value="">All tags</option>${tags.map((t) => `<option ${filters.tag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><div class="color-filter" aria-label="Filter by color">${[...new Set([...state.settings.colors, ...state.highlights.map((h) => h.color)])].map((c) => `<button class="swatch ${filters.color === c ? 'active' : ''}" data-color="${c}" style="background:${c}" aria-label="Filter ${c}" aria-pressed="${filters.color === c}" title="Filter ${c}"></button>`).join('')}</div>${extra}<div class="spacer"></div>${Object.values(filters).some(Boolean) ? action('clear', 'Clear filters', '', 'ghost') : ''}<select id="sort" aria-label="Sort pages">${[
+    ['newest', 'Recently updated'],
+    ['oldest', 'Oldest first'],
+    ['title', 'Title A–Z'],
+  ]
+    .map(([v, t]) => `<option value="${v}" ${filters.sort === v ? 'selected' : ''}>${t}</option>`)
+    .join('')}</select></div>`;
+}
+function bindLibraryFilters(content) {
+  for (const [selector, filter] of [
+    ['#type-filter', 'type'],
+    ['#tag-filter', 'tag'],
+    ['#sort', 'sort'],
+  ]) {
+    content.querySelector(selector).onchange = (event) => {
+      filters[filter] = event.target.value;
+      renderContent();
+      content.querySelector(selector).focus();
+    };
+  }
+  content.querySelectorAll('[data-color]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        filters.color = filters.color === b.dataset.color ? '' : b.dataset.color;
+        renderContent();
+        [...content.querySelectorAll('[data-color]')]
+          .find((button) => button.dataset.color === b.dataset.color)
+          ?.focus();
+      }),
+  );
 }
 async function organizationChanged(result, label, route) {
   if (result.count) {
@@ -320,6 +403,9 @@ function openSearchMatch(page) {
     const options = hit.pdfPage ? { page: hit.pdfPage } : { query: hit.match };
     return extension.tabs.create({ url: viewerUrl(page, options) });
   }
+  return openLibraryMatch(page, hit);
+}
+function openLibraryMatch(page, hit) {
   if (hit.kind === 'highlight' && page.type === 'pdf')
     return extension.tabs.create({ url: viewerUrl(page, { highlight: hit.highlightId }) });
   detailsCollapsed = false;
@@ -376,7 +462,7 @@ function openDetail(id) {
   detailsCollapsed = false;
   detailScroll = 0;
   detailId = id;
-  history.replaceState(null, '', '#page=' + id);
+  if (view !== 'highlights') history.replaceState(null, '', '#page=' + id);
   renderDetail();
   if (matchMedia('(max-width:1100px)').matches)
     document.querySelector('.drawer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -395,11 +481,13 @@ function closeDetail() {
   history.replaceState(
     null,
     '',
-    filters.collection
-      ? '#collection=' + encodeURIComponent(filters.collection)
-      : filters.unfiled
-        ? '#unfiled'
-        : '#' + view,
+    view === 'highlights'
+      ? '#highlights'
+      : filters.collection
+        ? '#collection=' + encodeURIComponent(filters.collection)
+        : filters.unfiled
+          ? '#unfiled'
+          : '#' + view,
   );
 }
 function renderDetail() {
@@ -415,9 +503,10 @@ function renderDetail() {
   const drawer = document.createElement('aside');
   drawer.className = 'drawer';
   drawer.setAttribute('aria-label', 'Page details');
-  drawer.innerHTML = `<div class="detail-resizer" role="separator" tabindex="0" aria-label="Resize source details" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="720" aria-valuenow="${state.settings.detailWidth}"></div><div class="drawer-header row between"><span class="eyebrow">${esc(p.type)} · ${hs.length} highlight${hs.length === 1 ? '' : 's'}</span><div class="row"><button class="icon-btn" data-collapse aria-label="Collapse details" title="Hide highlights and show the full library">${icon('chevron')}</button><button class="icon-btn" data-close aria-label="Close details">${icon('close')}</button></div></div><div class="drawer-content"><span class="eyebrow">${esc(hostname(p.url))}</span><h1>${esc(p.title)}</h1>${safeUrl(p.url) ? `<a class="source-link" href="${esc(safeUrl(p.url))}" target="_blank" rel="noreferrer">${esc(p.url)} ${icon('external', 11)}</a>` : ''}<div class="detail-tools">${action('reader', p.type === 'pdf' ? 'PDF viewer' : 'Read offline', p.type === 'pdf' ? 'file' : 'book')}${action('edit-page', 'Edit page', 'tag')}${action('translate-page', 'Translate', 'languages')}${action('read-aloud', 'Read aloud', 'book')}${action('capture-source', 'Quick note / audio', 'mic')}${action('bookmark', p.bookmarked ? 'Bookmarked' : 'Bookmark', 'bookmark', p.bookmarked ? 'primary' : '')}${action('copy-notion', 'Copy for Notion', 'external')}${action('download-md', 'Download .md', 'file')}${action('export-page', 'More exports', 'arrow')}${action('delete-page', 'Delete', 'trash', 'danger')}</div>${p.collection ? `<span class="tag">${esc(p.collection)}</span>` : ''}<div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="section-label">Page note</div><div class="note-preview" data-page-note>${p.note ? markdown(p.note) : '<p class="muted">Add a thought about this page with “Edit page”.</p>'}</div><div class="section-label">Voice recordings</div><div data-saved-audio></div><div class="section-label">On-device AI</div><div class="row wrap small">${action('key-points', 'Key points')}${action('summary', 'Summarize')}${action('chat', 'Ask this page')}${action('ai-cards', 'Draft flashcards')}</div><p class="muted small" style="margin-top:8px">Runs locally when supported by your browser. Model setup may require a download.</p>${p.summary ? `<div class="note-preview">${markdown(p.summary)}</div>` : ''}<div id="ai-status" class="muted small" role="status"></div><div class="row between section-label"><span>Highlights & notes</span>${action('add-note', 'Add note', 'plus', 'ghost')}</div>${hs.length ? hs.map((h) => `<article class="annotation" data-annotation="${esc(h.id)}" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${markdown(h.note)}</div>${h.originalText ? `<details class="repair-history"><summary>Original quote before repair</summary><blockquote>${esc(h.originalText)}</blockquote><p class="muted small">The last 10 replaced locations are retained in full backups.</p></details>` : ''}<div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="annotation-actions"><button data-jump="${h.id}">Find</button>${p.type !== 'pdf' ? `<button data-repair-highlight="${h.id}">Repair location</button>` : ''}<button data-highlight-points="${esc(h.id)}">Key points</button><button data-explain-highlight="${esc(h.id)}">Explain</button><button data-translate-highlight="${h.id}">Translate</button><button data-card="${h.id}">${icon('flash', 12)} Study</button><button data-edit="${h.id}">Edit</button><button data-delete="${h.id}" aria-label="Delete highlight" class="danger">${icon('trash', 13)}</button></div></article>`).join('') : '<p class="muted small">No highlights yet. Open this page and select a passage.</p>'}</div>`;
+  drawer.innerHTML = `<div class="detail-resizer" role="separator" tabindex="0" aria-label="Resize source details" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="720" aria-valuenow="${state.settings.detailWidth}"></div><div class="drawer-header row between"><span class="eyebrow">${esc(p.type)} · ${hs.length} highlight${hs.length === 1 ? '' : 's'}</span><div class="row"><button class="icon-btn" data-collapse aria-label="Collapse details" title="Hide highlights and show the full library">${icon('chevron')}</button><button class="icon-btn" data-close aria-label="Close details">${icon('close')}</button></div></div><div class="drawer-content"><span class="eyebrow">${esc(hostname(p.url))}</span><h1>${esc(p.title)}</h1>${safeUrl(p.url) ? `<a class="source-link" href="${esc(safeUrl(p.url))}" target="_blank" rel="noreferrer">${esc(p.url)} ${icon('external', 11)}</a>` : ''}<div class="detail-tools">${action('reader', p.type === 'pdf' ? 'PDF viewer' : 'Read offline', p.type === 'pdf' ? 'file' : 'book')}${action('edit-page', 'Edit page', 'tag')}${action('translate-page', 'Translate', 'languages')}${action('read-aloud', 'Read aloud', 'book')}${action('capture-source', 'Quick note / audio', 'mic')}${action('bookmark', p.bookmarked ? 'Bookmarked' : 'Bookmark', 'bookmark', p.bookmarked ? 'primary' : '')}${action('copy-notion', 'Copy for Notion', 'external')}${action('download-md', 'Download .md', 'file')}${action('export-page', 'More exports', 'arrow')}${action('delete-page', 'Delete', 'trash', 'danger')}</div>${p.collection ? `<span class="tag">${esc(p.collection)}</span>` : ''}<div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="section-label">Page note</div><div class="note-preview" data-page-note>${p.note ? markdown(p.note) : '<p class="muted">Add a thought about this page with “Edit page”.</p>'}</div><div class="section-label">Voice recordings</div><div data-saved-audio></div><div class="section-label">On-device AI</div><div class="row wrap small">${action('key-points', 'Key points')}${action('summary', 'Summarize')}${action('chat', 'Ask this page')}${action('ai-cards', 'Draft flashcards')}</div><p class="muted small" style="margin-top:8px">Runs locally when supported by your browser. Model setup may require a download.</p>${p.summary ? `<div class="note-preview">${markdown(p.summary)}</div>` : ''}<div id="ai-status" class="muted small" role="status"></div><div class="row between section-label"><span>Highlights & notes</span>${action('add-note', 'Add note', 'plus', 'ghost')}</div>${hs.length ? hs.map((h) => `<article class="annotation" data-annotation="${esc(h.id)}" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${markdown(h.note)}</div>${h.originalText ? `<details class="repair-history"><summary>Original quote before repair</summary><blockquote>${esc(h.originalText)}</blockquote><p class="muted small">The last 10 replaced locations are retained in full backups.</p></details>` : ''}<div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="annotation-actions"><button data-jump="${h.id}">Find</button>${copyQuoteButton(h)}${p.type !== 'pdf' ? `<button data-repair-highlight="${h.id}">Repair location</button>` : ''}<button data-highlight-points="${esc(h.id)}">Key points</button><button data-explain-highlight="${esc(h.id)}">Explain</button><button data-translate-highlight="${h.id}">Translate</button><button data-card="${h.id}">${icon('flash', 12)} Study</button><button data-edit="${h.id}">Edit</button><button data-delete="${h.id}" aria-label="Delete highlight" class="danger">${icon('trash', 13)}</button></div></article>`).join('') : '<p class="muted small">No highlights yet. Open this page and select a passage.</p>'}</div>`;
   const workspace = document.querySelector('.workspace');
   workspace.append(drawer);
+  bindCopyQuotes(drawer, new Map(hs.map((highlight) => [highlight.id, { page: p, highlight }])));
   renderAudioNotes(drawer.querySelector('[data-saved-audio]'), { pageId: p.id })
     .then((cleanup) => {
       if (drawer.isConnected) releaseDetailAudio = cleanup;
@@ -817,6 +906,7 @@ function bindActions(root, page) {
 }
 async function handleAction(name, p) {
   if (name === 'clear') {
+    if (view === 'highlights') closeDetail();
     filters = {};
     history.replaceState(null, '', '#' + view);
     render();
@@ -1024,6 +1114,7 @@ document.addEventListener('keydown', (e) => {
 });
 const hash = location.hash;
 if (hash === '#settings') view = 'settings';
+else if (hash === '#highlights') view = 'highlights';
 else if (hash === '#study') view = 'study';
 else if (hash === '#unfiled') filters = { unfiled: true };
 else if (hash.startsWith('#collection='))
@@ -1039,6 +1130,10 @@ refresh().catch((e) => {
 });
 
 function exportSelection() {
+  if (view === 'highlights') {
+    const matches = searchHighlights(state.pages, state.highlights, filters);
+    return [...new Set(matches.map(({ page }) => page))];
+  }
   return selected.size
     ? state.pages.filter((p) => selected.has(p.id))
     : view === 'settings' || view === 'study'
