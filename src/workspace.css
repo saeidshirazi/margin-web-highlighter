@@ -722,6 +722,3 @@
 .library-highlight h2 {
   margin: 0 0 8px;
 }
-.library-highlight .annotation-actions {
-  flex-wrap: wrap;
-}
