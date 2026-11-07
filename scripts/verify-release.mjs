@@ -4,8 +4,8 @@ import { unzipSync, strFromU8 } from 'fflate';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
-const directory = 'release/public';
 const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+const directory = path.join('release', 'public', `v${version}`);
 const registration = JSON.parse(await readFile('config/google-oauth.public.json', 'utf8'));
 const relay = JSON.parse(await readFile('config/translation-relay.public.json', 'utf8'));
 const ids = JSON.parse(await readFile('config/browser-ids.json', 'utf8'));
@@ -67,4 +67,15 @@ for (const suffix of [
   checksums.push(createHash('sha256').update(bytes).digest('hex') + '  ' + name);
   console.log(`Verified ${name}: ${names.length} files`);
 }
-await writeFile(path.join(directory, 'SHA256SUMS.txt'), checksums.join('\n') + '\n');
+const checksumPath = path.join(directory, 'SHA256SUMS.txt');
+const checksumText = checksums.join('\n') + '\n';
+try {
+  await writeFile(checksumPath, checksumText, { flag: 'wx' });
+} catch (error) {
+  if (error.code !== 'EEXIST') throw error;
+  assert.equal(
+    (await readFile(checksumPath, 'utf8')).replace(/\r\n/g, '\n'),
+    checksumText,
+    'Existing checksums do not match the release archives',
+  );
+}

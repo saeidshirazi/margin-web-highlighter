@@ -16,6 +16,19 @@ npm run format:check
 
 Load `dist` in Chrome, `dist-edge` in Edge, `dist-brave` in Brave, or `dist-firefox/manifest.json` as a temporary Firefox add-on. See [installation](docs/INSTALL.md).
 
+## Project layout
+
+| Path                                  | Contents                                                           |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `src/` and `public/`                  | Extension code and files copied into each build                    |
+| `scripts/` and `tests/`               | Build, packaging, and validation tools                             |
+| `docs/`, `brand/`, and `config/`      | Guides and GitHub Pages, brand assets, and public configuration    |
+| `dist`, `dist-*`, and `work/public-*` | Generated unpacked extensions at stable paths                      |
+| `release/public/v<version>/`          | Public browser packages, source ZIP, and checksums for one release |
+| `release/local/v<version>/`           | Archives from `npm run package` using local build configuration    |
+| `release/store/`                      | Local browser-store submission drafts and listing assets           |
+| `test-results/`                       | Generated test reports and screenshots                             |
+
 ## Browser checks
 
 ```sh
@@ -54,7 +67,7 @@ Do not commit browser profiles, personal highlights, backups, private PDFs, toke
 1. Update `package.json` and `public/manifest.json` versions together, along with documentation/download names.
 2. Run checks and appropriate browser suites; inspect native recordings/PDF exports and review dependency advisories.
 3. Run `npm run package:public`, then `npm run verify:release` and `npm run test:drive:public`. This builds into isolated staging folders and excludes local OAuth configuration; existing configured browser installations are preserved.
-4. Attach files from `release/public` to a GitHub release. Keep `manifest.json` at each browser archive root. Publish a source snapshot and checksums alongside browser downloads.
+4. Attach the files from `release/public/v<version>/` to the matching GitHub release. Keep `manifest.json` at each browser archive root. Publish the source ZIP and checksums alongside the browser downloads. Once a public package has checksums, the packager requires a new version before writing new archives.
 5. State Firefox signing status and optional Google OAuth setup accurately. Do not label a ZIP as a browser-store listing or claim universal site/model support.
 6. For configured public Google sign-in, complete the appropriate Google consent-screen process and verify exact production IDs/callbacks. Never bundle a client secret.
 

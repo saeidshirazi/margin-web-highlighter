@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import { IDBObjectStore } from 'fake-indexeddb';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as db from '../src/db.js';
@@ -56,4 +57,65 @@ test('settings validate colors and clamp reader controls', async () => {
   assert.equal(settings.readerSize, 36);
   assert.equal(settings.readerWidth, 440);
   await assert.rejects(db.saveSettings({ colors: ['nope'] }));
+});
+
+test('concurrent settings patches and card reviews preserve both changes', async () => {
+  await Promise.all([db.saveSettings({ theme: 'dark' }), db.saveSettings({ readerWidth: 900 })]);
+  const settings = await db.preferences();
+  assert.equal(settings.theme, 'dark');
+  assert.equal(settings.readerWidth, 900);
+  const page = await db.savePage({ url: 'https://test.example/concurrent', title: 'Concurrent' });
+  const card = await db.addCard({ pageId: page.id, question: 'Question', answer: 'Answer' });
+  await Promise.all([db.gradeCard(card.id, true), db.gradeCard(card.id, true)]);
+  assert.equal((await db.get('cards', card.id)).repetitions, 2);
+  await db.removePage(page.id);
+});
+
+test('a failed PDF attachment write rolls back its page', async () => {
+  const originalPut = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function (...args) {
+    if (this.name === 'assets') throw new DOMException('Simulated full disk', 'QuotaExceededError');
+    return originalPut.apply(this, args);
+  };
+  const url = 'https://test.example/failed.pdf';
+  try {
+    await assert.rejects(
+      db.savePDF({ url, title: 'PDF', base64: 'JVBERi0=' }),
+      /Simulated full disk/,
+    );
+  } finally {
+    IDBObjectStore.prototype.put = originalPut;
+  }
+  assert.equal((await db.pageData(url)).page, undefined);
+});
+
+test('a repeated undo cannot replace a newer highlight edit', async () => {
+  const page = await db.savePage({ url: 'https://test.example/undo', title: 'Undo' });
+  const highlight = await db.addHighlight({
+    pageId: page.id,
+    text: 'Quote',
+    anchor: { exact: 'Quote' },
+    color: '#ffe08a',
+  });
+  const removed = await db.removeHighlight(highlight.id);
+  await db.restoreHighlight(removed);
+  await db.updateHighlight(highlight.id, { note: 'Newer edit' });
+  await assert.rejects(db.restoreHighlight(removed), /already in the library/);
+  assert.equal((await db.get('highlights', highlight.id)).note, 'Newer edit');
+  await db.removePage(page.id);
+});
+
+test('a study card cannot attach to a deleted or unrelated highlight', async () => {
+  const page = await db.savePage({ url: 'https://test.example/study-card', title: 'Study' });
+  await assert.rejects(
+    db.addCard({
+      pageId: page.id,
+      highlightId: 'deleted-highlight',
+      question: 'Question',
+      answer: 'Answer',
+    }),
+    /source highlight/,
+  );
+  assert.equal((await db.snapshot()).cards.length, 0);
+  await db.removePage(page.id);
 });

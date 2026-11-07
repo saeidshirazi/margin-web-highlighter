@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2
+
+- Made PDF saves, settings patches, and study reviews atomic. Repeated undo keeps newer highlight edits.
+- Unified Markdown sanitization and escaped record IDs in UI attributes.
+- Enforced the PDF download limit while streaming, and fixed bookmark reloads and library search navigation.
+- Split the export dialog into a focused module, updated architecture documentation, and organized local release archives by version.
+
 ## 0.9.1
 
 - Added optional GitHub release alerts. Enable checks in **Settings & backups → Extension updates** to see a toolbar badge and release link when a newer version is available.

@@ -190,44 +190,45 @@ export async function pageData(url) {
     return { page, highlights, settings: { ...DEFAULT_SETTINGS, ...settings?.value } };
   });
 }
-export async function savePage(input) {
+async function savePageRecord(store, input) {
   const url = canonicalUrl(input.url);
   const now = Date.now();
-  return transaction(['pages'], 'readwrite', async (s) => {
-    const old = await request(s.pages.index('url').get(url));
-    const page = {
-      id: old?.id || uid(),
-      url,
-      title: String(input.title || url).slice(0, 2000),
-      type: input.type || old?.type || 'web',
-      createdAt: old?.createdAt || now,
-      updatedAt: now,
-      tags: [],
-      note: '',
-      collection: '',
-      bookmarked: false,
-      ...old,
-    };
-    for (const key of [
-      'title',
-      'note',
-      'collection',
-      'bookmarked',
-      'article',
-      'text',
-      'byline',
-      'summary',
-      'type',
-      'transcript',
-    ])
-      if (input[key] !== undefined) page[key] = input[key];
-    page.tags = input.tags !== undefined ? cleanTags(input.tags) : page.tags;
-    if (input.collection !== undefined) page.collection = collectionTarget(input.collection);
-    if (page.type === 'note' && input.note !== undefined) page.text = String(input.note);
-    page.updatedAt = now;
-    await request(s.pages.put(page));
-    return page;
-  });
+  const old = await request(store.index('url').get(url));
+  const page = {
+    id: old?.id || uid(),
+    url,
+    title: String(input.title || url).slice(0, 2000),
+    type: input.type || old?.type || 'web',
+    createdAt: old?.createdAt || now,
+    updatedAt: now,
+    tags: [],
+    note: '',
+    collection: '',
+    bookmarked: false,
+    ...old,
+  };
+  for (const key of [
+    'title',
+    'note',
+    'collection',
+    'bookmarked',
+    'article',
+    'text',
+    'byline',
+    'summary',
+    'type',
+    'transcript',
+  ])
+    if (input[key] !== undefined) page[key] = input[key];
+  page.tags = input.tags !== undefined ? cleanTags(input.tags) : page.tags;
+  if (input.collection !== undefined) page.collection = collectionTarget(input.collection);
+  if (page.type === 'note' && input.note !== undefined) page.text = String(input.note);
+  page.updatedAt = now;
+  await request(store.put(page));
+  return page;
+}
+export function savePage(input) {
+  return transaction(['pages'], 'readwrite', ({ pages }) => savePageRecord(pages, input));
 }
 export async function addHighlight(input) {
   if (!input.text?.trim() || input.text.length > 100000 || !input.anchor)
@@ -379,22 +380,32 @@ export async function removeHighlight(id) {
   });
 }
 export async function restoreHighlight(item) {
-  if (!(await get('pages', item.pageId))) throw new Error('Page no longer exists');
   const { _deletedCards = [], ...highlight } = item;
-  await transaction(['highlights', 'cards'], 'readwrite', async (s) => {
-    await request(s.highlights.put(highlight));
-    for (const card of _deletedCards) await request(s.cards.put(card));
+  return transaction(['pages', 'highlights', 'cards'], 'readwrite', async (s) => {
+    if (!(await request(s.pages.get(highlight.pageId)))) throw new Error('Page no longer exists');
+    if (await request(s.highlights.get(highlight.id)))
+      throw new Error('This highlight is already in the library');
+    if (
+      _deletedCards.some(
+        (card) => card.pageId !== highlight.pageId || card.highlightId !== highlight.id,
+      )
+    )
+      throw new Error('A study card belongs to another highlight');
+    await request(s.highlights.add(highlight));
+    for (const card of _deletedCards) await request(s.cards.add(card));
+    return highlight;
   });
-  return highlight;
 }
 export async function saveSettings(patch) {
-  const old = (await get('settings', 'main'))?.value || DEFAULT_SETTINGS;
-  const next = normalizeSettings(patch, old);
-  await put('settings', { id: 'main', value: next });
-  return next;
+  return transaction(['settings'], 'readwrite', async ({ settings }) => {
+    const old = (await request(settings.get('main')))?.value;
+    const next = normalizeSettings(patch, old);
+    await request(settings.put({ id: 'main', value: next }));
+    return next;
+  });
 }
 function normalizeSettings(patch, old = DEFAULT_SETTINGS) {
-  const next = { ...old };
+  const next = { ...DEFAULT_SETTINGS, ...old };
   for (const key of Object.keys(DEFAULT_SETTINGS))
     if (patch[key] !== undefined) next[key] = patch[key];
   if (!['grid', 'list'].includes(next.libraryLayout)) next.libraryLayout = 'grid';
@@ -591,30 +602,45 @@ export async function savePDF({ url, title, base64 }) {
     !/^[A-Za-z0-9+/]*={0,2}$/.test(base64)
   )
     throw new Error('Invalid PDF data');
-  const page = await savePage({ url, title, type: 'pdf' });
-  await put('assets', { id: page.id, type: 'application/pdf', base64 });
-  return page;
+  return transaction(['pages', 'assets'], 'readwrite', async ({ pages, assets }) => {
+    const page = await savePageRecord(pages, { url, title, type: 'pdf' });
+    await request(assets.put({ id: page.id, type: 'application/pdf', base64 }));
+    return page;
+  });
 }
 export async function addCard(input) {
   if (!String(input.question || '').trim() || !String(input.answer || '').trim())
     throw new Error('Add a question and answer');
-  if (!(await get('pages', input.pageId))) throw new Error('Page no longer exists');
-  return put('cards', {
-    id: uid(),
-    pageId: input.pageId,
-    highlightId: input.highlightId || '',
-    question: String(input.question),
-    answer: String(input.answer),
-    dueAt: Date.now(),
-    createdAt: Date.now(),
-    interval: 0,
-    repetitions: 0,
+  return transaction(['pages', 'highlights', 'cards'], 'readwrite', async (s) => {
+    if (!(await request(s.pages.get(input.pageId)))) throw new Error('Page no longer exists');
+    if (input.highlightId) {
+      const highlight = await request(s.highlights.get(input.highlightId));
+      if (!highlight || highlight.pageId !== input.pageId)
+        throw new Error('The source highlight no longer exists on this page');
+    }
+    const card = {
+      id: uid(),
+      pageId: input.pageId,
+      highlightId: input.highlightId || '',
+      question: String(input.question),
+      answer: String(input.answer),
+      dueAt: Date.now(),
+      createdAt: Date.now(),
+      interval: 0,
+      repetitions: 0,
+    };
+    await request(s.cards.put(card));
+    return card;
   });
 }
 export async function gradeCard(id, correct) {
-  const card = await get('cards', id);
-  if (!card) throw new Error('Card no longer exists');
-  return put('cards', reviewCard(card, correct));
+  return transaction(['cards'], 'readwrite', async ({ cards }) => {
+    const card = await request(cards.get(id));
+    if (!card) throw new Error('Card no longer exists');
+    const next = reviewCard(card, correct);
+    await request(cards.put(next));
+    return next;
+  });
 }
 export const deleteCard = (id) =>
   transaction(['cards'], 'readwrite', (s) => request(s.cards.delete(id)));

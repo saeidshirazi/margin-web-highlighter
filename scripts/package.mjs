@@ -1,5 +1,5 @@
 import { zipSync } from 'fflate';
-import { cp, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { access, cp, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { archiveFiles } from './archive-files.mjs';
@@ -7,8 +7,22 @@ import { targets } from './browser-manifest.mjs';
 import { scratchDirectory } from './scratch-directory.mjs';
 
 const publicBuild = process.argv.includes('--public');
-const releaseDir = publicBuild ? 'release/public' : 'release';
 const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+const releaseDir = path.join('release', publicBuild ? 'public' : 'local', `v${version}`);
+
+if (publicBuild) {
+  const verified = await access(path.join(releaseDir, 'SHA256SUMS.txt')).then(
+    () => true,
+    (error) => {
+      if (error.code !== 'ENOENT') throw error;
+      return false;
+    },
+  );
+  if (verified)
+    throw new Error(
+      `Verified archives already exist in ${releaseDir}. Use a new version for the next public release.`,
+    );
+}
 
 // Build ZIPs from fresh outputs, then refresh the stable folders used by installed
 // extensions and browser tests. Old files in those folders cannot enter an archive.

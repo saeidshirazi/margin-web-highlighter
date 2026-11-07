@@ -1,8 +1,10 @@
-# Features in Margin 0.9.0
+# Features in Margin 0.9.2
 
 [Install](docs/INSTALL.md) · [Getting started](docs/GETTING-STARTED.md) · [Browser compatibility and tests](CROSS-BROWSER.md)
 
 ## New in 0.9
+
+Optional GitHub update checks show a toolbar badge and release link for newer versions. Enable them under **Settings & backups → Extension updates**. GitHub packages update through the manual installation process.
 
 The Highlights view brings individual quotes and their notes into one searchable list. Filter by color, tag, source type, collection, or bookmark status. Open a result to go to the annotation or PDF page. Copy a quote with its source title, web address when available, and PDF page number when known.
 
