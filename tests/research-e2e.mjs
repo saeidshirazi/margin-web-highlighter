@@ -111,9 +111,17 @@ try {
       { name: 'Local French voice', lang: 'fr-FR', voiceURI: 'fr', localService: true },
     ];
     globalThis.spokenSelections = [];
-    synth.speak = (utterance) =>
+    synth.speaking = false;
+    synth.pending = false;
+    synth.speak = (utterance) => {
       globalThis.spokenSelections.push([utterance.text, utterance.voice.voiceURI]);
-    synth.cancel = () => {};
+      globalThis.currentSpeech = utterance;
+      synth.speaking = true;
+      utterance.onstart?.();
+    };
+    synth.cancel = () => {
+      synth.speaking = false;
+    };
     Object.defineProperty(globalThis, 'speechSynthesis', { value: synth, configurable: true });
     globalThis.SpeechSynthesisUtterance = class {
       constructor(text) {
@@ -144,6 +152,29 @@ try {
   await expect
     .poll(() => reader.evaluate(() => globalThis.spokenSelections.at(-1)))
     .toEqual(['ReaderNeedle', 'uk']);
+  const stopSpeech = toolbar.getByRole('button', { name: 'Stop', exact: true });
+  const repeatSpeech = toolbar.getByRole('button', { name: 'Repeat', exact: true });
+  const speechStatus = toolbar.locator('.selection-speech [role=status]');
+  await expect(stopSpeech).toBeEnabled();
+  await reader.evaluate(() => {
+    globalThis.speechSynthesis.speaking = false;
+  });
+  await expect(speechStatus).toHaveText('Pronunciation finished.');
+  await expect(stopSpeech).toBeDisabled();
+  await repeatSpeech.click();
+  await expect
+    .poll(() => reader.evaluate(() => globalThis.spokenSelections.slice(-2)))
+    .toEqual([
+      ['ReaderNeedle', 'uk'],
+      ['ReaderNeedle', 'uk'],
+    ]);
+  await expect(stopSpeech).toBeEnabled();
+  await reader.evaluate(() => {
+    globalThis.speechSynthesis.speaking = false;
+    globalThis.currentSpeech.onend();
+  });
+  await expect(speechStatus).toHaveText('Pronunciation finished.');
+  await expect(stopSpeech).toBeDisabled();
   let webRequests = 0;
   await context.route('https://translate.google.com/**', async (route) => {
     webRequests++;
