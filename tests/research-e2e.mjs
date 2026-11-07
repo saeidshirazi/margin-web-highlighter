@@ -437,9 +437,69 @@ try {
   await expect(capture.locator('[data-proofread-issues] li')).toHaveCount(0);
   await capture.close();
   await context.setOffline(false);
+  const discovery = await api('save-page', {
+    url: 'https://example.test/discovery',
+    title: 'Discovery source',
+  });
+  const related = await api('add-highlight', {
+    pageId: discovery.id,
+    text: 'Coastal wetlands protect migratory birds.',
+    anchor: { exact: 'Coastal wetlands protect migratory birds.' },
+    color: '#ffe08a',
+    tags: ['discovery-test'],
+  });
+  await api('add-highlight', {
+    pageId: source.id,
+    text: 'Restoring wetlands supports migratory species.',
+    anchor: { exact: 'Restoring wetlands supports migratory species.' },
+    color: '#ffe08a',
+  });
+  await api('add-highlight', {
+    pageId: source.id,
+    text: 'A separate observation from this study.',
+    anchor: { exact: 'A separate observation from this study.' },
+    color: '#ffe08a',
+    tags: ['discovery-test'],
+  });
+  await library.locator('[data-view="highlights"]').click();
+  await search.fill('Coastal');
+  await library.getByLabel('Filter by tag').selectOption('discovery-test');
+  await library.getByLabel('Sort pages').selectOption('oldest');
+  await library.getByRole('button', { name: 'Save search', exact: true }).click();
+  await library.getByRole('dialog').getByLabel('Name').fill('Wetland research');
+  await library.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(library.getByText('Search saved.')).toBeVisible();
+  await library.goto(base + 'library.html#all');
+  await library.reload();
+  await library.getByRole('button', { name: 'Saved searches', exact: true }).click();
+  await expect(library.getByRole('dialog').locator('option:checked')).toHaveText(
+    'Wetland research',
+  );
+  await library.getByRole('button', { name: 'Open search', exact: true }).click();
+  await expect(search).toHaveValue('Coastal');
+  await expect(library.getByLabel('Filter by tag')).toHaveValue('discovery-test');
+  await expect(library.getByLabel('Sort pages')).toHaveValue('oldest');
+  await expect(library.locator('.library-highlight')).toHaveCount(1);
+  await library.locator(`[data-related-highlight="${related.id}"]`).click();
+  const relatedDialog = library.getByRole('dialog');
+  const wordMatch = relatedDialog.locator('li').filter({
+    hasText: 'Shared words: wetlands, migratory',
+  });
+  await expect(wordMatch).toBeVisible();
+  await expect(relatedDialog.locator('li').first()).toContainText('Shared tags: discovery-test');
+  await expect(relatedDialog.getByText('Coastal wetlands protect migratory birds.')).toHaveCount(0);
+  await wordMatch.getByRole('button', { name: 'Open highlight' }).click();
+  await expect(library.locator('.drawer [data-annotation]:focus')).toContainText(
+    'Restoring wetlands supports migratory species.',
+  );
+  await library.getByRole('button', { name: 'Saved searches', exact: true }).click();
+  await library.getByRole('button', { name: 'Remove selected search' }).click();
+  await expect(library.getByRole('dialog').getByRole('status')).toHaveText(
+    'No saved searches left.',
+  );
   assert.deepEqual(errors, []);
   console.log(
-    `PASS ${browserTarget}: pronunciation, translation, research tools, search, resume, highlights, encrypted restore preview, and offline proofreading.`,
+    `PASS ${browserTarget}: research tools, search, saved searches, related highlights, resume, encrypted restore preview, and offline proofreading.`,
   );
 } finally {
   await context.close();

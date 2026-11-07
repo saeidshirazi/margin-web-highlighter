@@ -506,6 +506,41 @@ export async function saveExportPreset(input) {
     return preset;
   });
 }
+
+const SAVED_SEARCHES_KEY = 'device-saved-searches';
+
+export async function listSavedSearches() {
+  return (await get('settings', SAVED_SEARCHES_KEY))?.value || [];
+}
+
+export async function addSavedSearch({ name, view, filters }) {
+  name = name.trim();
+  if (!name || name.length > 80) throw new Error('Enter a name up to 80 characters.');
+  return transaction(['settings'], 'readwrite', async ({ settings }) => {
+    const searches = (await request(settings.get(SAVED_SEARCHES_KEY)))?.value || [];
+    if (searches.some((item) => item.name.toLowerCase() === name.toLowerCase()))
+      throw new Error('A search with that name already exists.');
+    if (searches.length >= 50) throw new Error('Remove a saved search before adding another.');
+    await request(
+      settings.put({
+        id: SAVED_SEARCHES_KEY,
+        value: [...searches, { id: uid(), name, view, filters }],
+      }),
+    );
+  });
+}
+
+export async function removeSavedSearch(id) {
+  return transaction(['settings'], 'readwrite', async ({ settings }) => {
+    const searches = (await request(settings.get(SAVED_SEARCHES_KEY)))?.value || [];
+    await request(
+      settings.put({
+        id: SAVED_SEARCHES_KEY,
+        value: searches.filter((search) => search.id !== id),
+      }),
+    );
+  });
+}
 export async function deleteExportPreset(id) {
   return transaction(['settings'], 'readwrite', async (s) => {
     const presets = normalizePresets((await request(s.settings.get(PRESETS_KEY)))?.value || []);
