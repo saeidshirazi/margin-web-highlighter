@@ -143,7 +143,9 @@ try {
       block: 'center',
       behavior: 'instant',
     });
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await new Promise((resolve) =>
+      window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)),
+    );
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   });
   const toolbar = reader.getByRole('toolbar', { name: 'Highlight selection' });
