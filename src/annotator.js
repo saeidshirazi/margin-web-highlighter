@@ -33,6 +33,7 @@ export function createAnnotator({
   style.textContent =
     css +
     '.editor,.selection-box{max-height:calc(100vh - 20px);overflow:auto}.repair{bottom:16px;left:16px;width:360px}.repair .quote{max-height:55px}.language-button{display:grid;place-items:center;width:30px;height:30px;padding:0}.selection-speech{width:270px;max-width:100%;margin-top:8px}.selection-speech select{max-width:100%;font:inherit}.selection-speech p{margin:6px 0;overflow-wrap:anywhere}' +
+    '.speech-playback{display:grid;grid-template-columns:7em minmax(0,1fr);align-items:center;gap:8px;margin-top:6px}.speech-playback p{margin:0}' +
     '.proofreading{margin:6px 0;font-size:12px}.proofreading summary{cursor:pointer;color:#204c3b;font-weight:600}.proofreading p{margin:4px 0}.proofreading p:empty{display:none}.proofreading ul{list-style:none;margin:0;padding:0;max-height:130px;overflow:auto;overscroll-behavior:contain}.proofreading li{border-top:1px solid #dce4df;padding:4px 0}.proofreading button{padding:3px 6px;text-align:start;overflow-wrap:anywhere}.proofreading li>button{margin-bottom:4px}';
   shadow.append(style);
   const layer = doc.createElement('div');

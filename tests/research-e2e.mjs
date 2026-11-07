@@ -156,12 +156,16 @@ try {
   const repeatSpeech = toolbar.getByRole('button', { name: 'Repeat', exact: true });
   const speechStatus = toolbar.locator('.selection-speech [role=status]');
   await expect(stopSpeech).toBeEnabled();
+  const playbackSize = await stopSpeech.boundingBox();
+  await expect(repeatSpeech).toHaveCount(0);
   await reader.evaluate(() => {
     globalThis.speechSynthesis.speaking = false;
   });
   await expect(speechStatus).toHaveText('Pronunciation finished.');
-  await expect(stopSpeech).toBeDisabled();
-  await repeatSpeech.click();
+  await expect(stopSpeech).toHaveCount(0);
+  assert.equal((await repeatSpeech.boundingBox()).width, playbackSize.width);
+  await repeatSpeech.focus();
+  await repeatSpeech.press('Enter');
   await expect
     .poll(() => reader.evaluate(() => globalThis.spokenSelections.slice(-2)))
     .toEqual([
@@ -174,7 +178,13 @@ try {
     globalThis.currentSpeech.onend();
   });
   await expect(speechStatus).toHaveText('Pronunciation finished.');
-  await expect(stopSpeech).toBeDisabled();
+  await expect(stopSpeech).toHaveCount(0);
+  await expect(repeatSpeech).toBeFocused();
+  await repeatSpeech.press('Enter');
+  await stopSpeech.press('Enter');
+  await expect(speechStatus).toHaveText('Stopped.');
+  await expect(stopSpeech).toHaveCount(0);
+  await expect(repeatSpeech).toBeFocused();
   let webRequests = 0;
   await context.route('https://translate.google.com/**', async (route) => {
     webRequests++;
@@ -219,6 +229,22 @@ try {
   await expect
     .poll(() => reader.evaluate(() => globalThis.spokenSelections.at(-1)))
     .toEqual([french, 'fr']);
+  await reader.evaluate(() => {
+    const paragraph = [...document.querySelectorAll('#article p')].find((p) =>
+      p.textContent.includes('ReaderNeedle'),
+    );
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await expect(toolbar.getByRole('button', { name: 'Pronounce selection' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await toolbar.getByRole('button', { name: 'Pronounce selection' }).click();
+  await expect(toolbar.getByLabel('Pronunciation voice')).toHaveValue('uk');
   await reader.evaluate(() => window.scrollTo(0, 700));
   await expect.poll(() => reader.evaluate(() => window.scrollY)).toBe(700);
   await reader.waitForTimeout(350);

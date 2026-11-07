@@ -46,3 +46,47 @@ jobs:
       - run: npm run package:public
       - run: npm run verify:release
       - run: npm run test:drive:public
+
+  desktop-browsers:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        browser: [chrome, edge, brave, firefox]
+    env:
+      MARGIN_TEST_BROWSER: ${{ matrix.browser }}
+      MARGIN_LIVE_TRANSLATION_TEST: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - if: matrix.browser == 'chrome'
+        run: npx playwright install --with-deps chromium
+      - if: matrix.browser == 'firefox'
+        run: npx playwright install --with-deps firefox
+      - if: matrix.browser == 'edge' && runner.os == 'macOS'
+        run: test -d '/Applications/Microsoft Edge.app' || brew install --cask microsoft-edge
+      - if: matrix.browser == 'brave' && runner.os == 'macOS'
+        run: brew install --cask brave-browser
+      - if: matrix.browser == 'brave' && runner.os == 'Windows'
+        run: choco install brave --yes --no-progress
+      - if: matrix.browser == 'brave' && runner.os == 'Linux'
+        run: |
+          sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+          sudo curl -fsSLo /etc/apt/sources.list.d/brave-browser-release.sources https://brave-browser-apt-release.s3.brave.com/brave-browser.sources
+          sudo apt-get update
+          sudo apt-get install -y brave-browser
+      - run: node scripts/build.mjs --target=${{ matrix.browser }}
+        env:
+          MARGIN_GOOGLE_WEB_CLIENT_ID: 123-ci-fixture.apps.googleusercontent.com
+      - if: matrix.browser != 'firefox'
+        run: npm run test:research
+      - if: matrix.browser == 'firefox'
+        run: npm run test:firefox
