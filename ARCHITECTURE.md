@@ -20,7 +20,7 @@ Browser entry points are bundled from `src/` by `scripts/build.mjs`. Shared modu
 
 Release alerts have their own serialized queue and device-local `chrome.storage.local` state. Their network requests run outside the research mutation queue. They use an optional GitHub API permission, fetch public release metadata without credentials, and never fetch executable updates. Only trusted extension pages can change these settings.
 
-Proofreading starts a dedicated worker when its panel opens with a draft. The worker loads the packaged Harper WebAssembly engine from the extension. Suggestions apply to the checked draft only, and the worker stops when the panel or editor closes.
+Library and Quick Note proofreading starts a dedicated worker when its panel opens with a draft. Website annotation popups send the draft to the extension background context, where the same packaged Harper engine loads on demand outside the research mutation queue. Suggestions apply to the checked draft only, and closing the panel or editor discards outstanding results.
 
 Page creation and PDF bytes commit in one IndexedDB transaction. Settings patches and study reviews perform their read/modify/write inside a transaction. A repeated undo rejects an existing highlight to preserve subsequent edits.
 

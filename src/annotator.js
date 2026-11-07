@@ -3,6 +3,7 @@ import { escapeHtml as esc } from './core.js';
 import { api } from './api.js';
 import { icon } from './ui.js';
 import { addSelectionSpeech } from './selection-speech.js';
+import { addProofreading } from './proofreading-ui.js';
 const css = `:host{all:initial;font-family:system-ui,sans-serif;color:#202c28;font-size:13px;line-height:1.5}*{box-sizing:border-box}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #dce4df;border-radius:8px;background:white;padding:7px 10px;color:#253d33}button:hover{background:#f1f6f3}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #4b9172;outline-offset:2px}.box{position:fixed;z-index:2147483647;background:#fff;border:1px solid #dce4df;border-radius:13px;box-shadow:0 8px 35px #10291e33;padding:9px;max-width:calc(100vw - 20px)}.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.swatch{width:27px;height:27px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b9c6bc}.swatch[aria-pressed=true]{box-shadow:0 0 0 2px #204c3b}.editor{width:330px}label{display:block;margin-top:10px;font-size:12px;font-weight:600}textarea,input[type=text]{width:100%;padding:8px;border:1px solid #d3ddd6;border-radius:7px;background:#fff;color:#202c28}textarea{height:100px;resize:vertical}input[type=color]{width:29px;height:29px;border:0;padding:0;background:none;cursor:pointer}.muted{color:#69786f;font-size:11px}.toast{bottom:20px;left:20px;max-width:440px}.quick{bottom:20px;right:20px}.danger{color:#a53635}.quote{max-height:80px;overflow:auto;margin:8px 0;padding:8px;background:#f3f7f3;border-radius:6px;white-space:pre-wrap}.tools button{padding:3px 8px;font-size:12px}`;
 export function createAnnotator({
   root = document.body,
@@ -17,6 +18,7 @@ export function createAnnotator({
   onColor,
   extraAnchor,
   onCapture,
+  onProofread,
   repair,
 }) {
   const doc = root.ownerDocument;
@@ -29,7 +31,8 @@ export function createAnnotator({
   const style = doc.createElement('style');
   style.textContent =
     css +
-    '.editor,.selection-box{max-height:calc(100vh - 20px);overflow:auto}.repair{bottom:16px;left:16px;width:360px}.repair .quote{max-height:55px}.language-button{display:grid;place-items:center;width:30px;height:30px;padding:0}.selection-speech{width:270px;max-width:100%;margin-top:8px}.selection-speech select{max-width:100%;font:inherit}.selection-speech p{margin:6px 0;overflow-wrap:anywhere}';
+    '.editor,.selection-box{max-height:calc(100vh - 20px);overflow:auto}.repair{bottom:16px;left:16px;width:360px}.repair .quote{max-height:55px}.language-button{display:grid;place-items:center;width:30px;height:30px;padding:0}.selection-speech{width:270px;max-width:100%;margin-top:8px}.selection-speech select{max-width:100%;font:inherit}.selection-speech p{margin:6px 0;overflow-wrap:anywhere}' +
+    '.proofreading{margin:6px 0;font-size:12px}.proofreading summary{cursor:pointer;color:#204c3b;font-weight:600}.proofreading p{margin:4px 0}.proofreading p:empty{display:none}.proofreading ul{list-style:none;margin:0;padding:0;max-height:130px;overflow:auto;overscroll-behavior:contain}.proofreading li{border-top:1px solid #dce4df;padding:4px 0}.proofreading button{padding:3px 6px;text-align:start;overflow-wrap:anywhere}.proofreading li>button{margin-bottom:4px}';
   shadow.append(style);
   const layer = doc.createElement('div');
   shadow.append(layer);
@@ -44,7 +47,7 @@ export function createAnnotator({
     toastTimer,
     lastDeleted,
     refreshTimer;
-  let repairing, stopSelectionSpeech;
+  let repairing, stopSelectionSpeech, stopProofreading;
   function cancelRepair() {
     repairing = null;
     delete host.dataset.marginMode;
@@ -131,6 +134,8 @@ export function createAnnotator({
   function close() {
     stopSelectionSpeech?.();
     stopSelectionSpeech = undefined;
+    stopProofreading?.();
+    stopProofreading = undefined;
     box?.remove();
     box = null;
   }
@@ -274,13 +279,24 @@ export function createAnnotator({
       }
     });
     box.querySelector('[data-close]').onclick = close;
+    const field = box.querySelector('[data-note]');
+    if (onProofread) {
+      const editorBox = box;
+      const dispose = addProofreading(field, editorBox, { checkDraft: onProofread, compact: true });
+      const observer = new win.ResizeObserver(() => position(editorBox, x, y));
+      observer.observe(editorBox);
+      stopProofreading = () => {
+        observer.disconnect();
+        dispose();
+      };
+    }
     box.querySelectorAll('[data-format]').forEach(
       (b) =>
         (b.onclick = () => {
-          const field = box.querySelector('[data-note]');
           const { selectionStart: a, selectionEnd: z } = field;
           const m = b.dataset.format;
           field.setRangeText(m + field.value.slice(a, z) + (m === '\n- ' ? '' : m), a, z, 'end');
+          field.dispatchEvent(new win.Event('input', { bubbles: true }));
           field.focus();
         }),
     );

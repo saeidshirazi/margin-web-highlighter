@@ -1,15 +1,15 @@
 import { extension } from './platform.js';
 import { MAX_PROOFREAD_LENGTH } from './proofreading-limit.js';
 
-export function addProofreading(field, editor) {
+export function addProofreading(field, editor, { checkDraft, compact = false } = {}) {
   const panel = document.createElement('details');
   panel.className = 'proofreading';
-  panel.innerHTML =
-    '<summary>Proofread note · English</summary><p class="muted small">Checks the draft on this device. Choose which suggestions to apply.</p><p class="muted small" data-proofread-status role="status"></p><ul data-proofread-issues></ul>';
+  panel.innerHTML = `<summary>${compact ? 'Proofread' : 'Proofread note'} · English</summary>${compact ? '' : '<p class="muted small">Checks the draft on this device. Choose which suggestions to apply.</p>'}<p class="muted small" data-proofread-status role="status"></p><ul data-proofread-issues></ul>`;
   (field.closest('label') || field).after(panel);
   const status = panel.querySelector('[data-proofread-status]');
   const list = panel.querySelector('[data-proofread-issues]');
   const ignored = new Set();
+  const limit = compact ? 2 : 8;
   let worker,
     timer,
     pending,
@@ -25,9 +25,9 @@ export function addProofreading(field, editor) {
     const visible = issues.filter((issue) => !ignored.has(key(issue)));
     list.replaceChildren();
     status.textContent = visible.length
-      ? `${visible.length} ${visible.length === 1 ? 'suggestion' : 'suggestions'}${visible.length > 8 ? ' · showing the first 8' : ''}`
+      ? `${visible.length} ${visible.length === 1 ? 'suggestion' : 'suggestions'}${visible.length > limit ? ` · showing the first ${limit}` : ''}`
       : 'No English suggestions for this draft.';
-    for (const issue of visible.slice(0, 8)) {
+    for (const issue of visible.slice(0, limit)) {
       const row = document.createElement('li');
       const show = button(issue.message, () => {
         if (field.value !== draft) return;
@@ -61,6 +61,14 @@ export function addProofreading(field, editor) {
     dispose();
     status.textContent = 'Proofreading could not finish. Close and reopen this panel to retry.';
   }
+  function finish(request, { issues, error }) {
+    if (!request || request !== pending) return;
+    pending = undefined;
+    if (!panel.open || composing || !panel.isConnected) return;
+    if (request.draft !== field.value) schedule();
+    else if (error) fail();
+    else render(issues, request.draft);
+  }
   function check() {
     if (!panel.open || !panel.isConnected || composing || pending !== undefined) return;
     const draft = field.value;
@@ -70,20 +78,28 @@ export function addProofreading(field, editor) {
       return;
     }
     try {
+      status.textContent = 'Checking English grammar…';
+      const request = { draft };
+      pending = request;
+      if (checkDraft) {
+        checkDraft(draft).then(
+          (issues) => finish(request, { issues }),
+          () => finish(request, { error: true }),
+        );
+        return;
+      }
       if (!worker) {
-        worker = new Worker(extension.runtime.getURL('proofreading-worker.js'), { type: 'module' });
-        worker.onerror = fail;
-        worker.onmessage = ({ data }) => {
-          const checked = pending;
-          pending = undefined;
-          if (data.error) return fail();
-          if (!panel.open || composing || !panel.isConnected) return;
-          if (checked === field.value) render(data.issues, checked);
-          else schedule();
+        const instance = new Worker(extension.runtime.getURL('proofreading-worker.js'), {
+          type: 'module',
+        });
+        worker = instance;
+        instance.onerror = () => {
+          if (worker === instance) fail();
+        };
+        instance.onmessage = ({ data }) => {
+          if (worker === instance) finish(pending, data);
         };
       }
-      status.textContent = 'Checking English grammar…';
-      pending = draft;
       worker.postMessage(draft);
     } catch {
       fail();
@@ -109,7 +125,8 @@ export function addProofreading(field, editor) {
     schedule();
   });
   if (editor.tagName === 'DIALOG') editor.addEventListener('close', dispose, { once: true });
-  else window.addEventListener('pagehide', dispose, { once: true });
+  else if (editor.tagName === 'FORM') window.addEventListener('pagehide', dispose, { once: true });
+  return dispose;
 }
 
 function key(issue) {

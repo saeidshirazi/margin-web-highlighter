@@ -1,10 +1,10 @@
-# Features in Margin 0.9.3
+# Features in Margin 0.9.4
 
 [Install](docs/INSTALL.md) · [Getting started](docs/GETTING-STARTED.md) · [Browser compatibility and tests](CROSS-BROWSER.md)
 
 ## New in 0.9
 
-**Proofread note** checks English drafts locally in the library and Quick Note editors. Select a suggestion to find the text, then apply or ignore it.
+**Proofread note** checks English drafts locally in the library and Quick Note editors. On a website, open **Proofread · English** beneath the note in a highlight’s annotation popup. Select a suggestion to find the text, then apply or ignore it.
 
 Optional GitHub update checks show a toolbar badge and release link for newer versions. Enable them under **Settings & backups → Extension updates**. GitHub packages update through the manual installation process.
 

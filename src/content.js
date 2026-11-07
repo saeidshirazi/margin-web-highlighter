@@ -106,6 +106,7 @@ async function start() {
     },
     onPanel: () => api('open-panel'),
     onColor: (color) => api('set-color', { color }),
+    onProofread: (text) => api('proofread-note', { text }),
     onCapture: (mode, item) =>
       api('open-capture', { mode, title: document.title, highlightId: item?.id }),
   });

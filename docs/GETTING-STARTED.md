@@ -64,6 +64,8 @@ When you want to move your research, choose **Export**. [Notion, Markdown, AI-ag
 
 In a library note editor or Quick Note, open **Proofread note · English**. Suggestions appear after you pause typing. Select a suggestion’s explanation to highlight the affected phrase in your draft, then choose a replacement or **Ignore**. Margin leaves your draft unchanged until you apply a suggestion. Quoted passages, code, web addresses, and lines containing non-Latin letters are excluded. The checker runs offline and supports drafts up to 16,000 characters.
 
+On a website, click a highlight to open its annotation popup, then open **Proofread · English** beneath the note. The compact panel shows up to two suggestions at a time. Applying a suggestion edits the draft. Choose **Save note** to save it to your library.
+
 Before closing a temporary Firefox session, moving devices, updating, or removing the extension, make a **Full JSON backup**. It includes your complete research plus PDF/audio files.
 
 ## New in 0.7

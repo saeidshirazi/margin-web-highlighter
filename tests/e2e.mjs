@@ -95,6 +95,79 @@ try {
       tabId,
       action,
     });
+  await worker.evaluate(
+    ({ tabId, id }) => chrome.tabs.sendMessage(tabId, { action: 'focus', id }),
+    {
+      tabId,
+      id: state.highlights[0].id,
+    },
+  );
+  const cdp = await context.newCDPSession(article);
+  const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+  function marginShadow(node) {
+    if (node.attributes?.includes('data-margin-ui') && node.shadowRoots?.length)
+      return node.shadowRoots[0];
+    for (const child of node.children || []) {
+      const found = marginShadow(child);
+      if (found) return found;
+    }
+  }
+  const { object } = await cdp.send('DOM.resolveNode', {
+    backendNodeId: marginShadow(root).backendNodeId,
+  });
+  async function inPopup(fn) {
+    const { result, exceptionDetails } = await cdp.send('Runtime.callFunctionOn', {
+      objectId: object.objectId,
+      functionDeclaration: fn.toString(),
+      returnByValue: true,
+    });
+    assert.equal(exceptionDetails, undefined);
+    return result.value;
+  }
+  await expect
+    .poll(() =>
+      inPopup(function () {
+        return !!this.querySelector('[data-note]');
+      }),
+    )
+    .toBe(true);
+  await inPopup(function () {
+    this.querySelector('[data-note]').focus();
+  });
+  await article.keyboard.insertText('This is a example.');
+  await context.setOffline(true);
+  await inPopup(function () {
+    this.querySelector('.proofreading summary').click();
+  });
+  await expect
+    .poll(
+      () =>
+        inPopup(function () {
+          return [...this.querySelectorAll('[data-proofread-issues] button')].some(
+            (button) => button.textContent === 'Apply “an”',
+          );
+        }),
+      { timeout: 20000 },
+    )
+    .toBe(true);
+  await inPopup(function () {
+    [...this.querySelectorAll('[data-proofread-issues] button')]
+      .find((button) => button.textContent === 'Apply “an”')
+      .click();
+  });
+  assert.equal(
+    await inPopup(function () {
+      return this.querySelector('[data-note]').value;
+    }),
+    'This is an example.',
+  );
+  await inPopup(function () {
+    this.querySelector('[data-save]').click();
+  });
+  await expect.poll(async () => (await snap()).highlights[0].note).toBe('This is an example.');
+  await context.setOffline(false);
+  await cdp.detach();
+  console.log('PASS: website annotation proofreads offline and saves the chosen correction');
   await send('bookmark');
   await select(article, '#passage');
   await send('highlight');
