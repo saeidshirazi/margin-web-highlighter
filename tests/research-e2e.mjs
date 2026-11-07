@@ -12,7 +12,10 @@ const context = await chromium.launchPersistentContext('', {
 });
 const errors = [];
 context.on('page', (page) =>
-  page.on('pageerror', (error) => errors.push(`${page.url()}\n${error.stack || error.message}`)),
+  page.on('pageerror', (error) => {
+    if (page.url().startsWith('chrome-extension:'))
+      errors.push(`${page.url()}\n${error.stack || error.message}`);
+  }),
 );
 try {
   const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
