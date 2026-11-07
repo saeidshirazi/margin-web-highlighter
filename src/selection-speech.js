@@ -17,6 +17,7 @@ async function identify(text) {
 }
 
 const accentLabels = { 'en-US': 'American English (US)', 'en-GB': 'British English (UK)' };
+const maxSelectionLength = 220;
 
 export function addSelectionSpeech(toolbar, trigger, options) {
   const { text, context, sourceLanguage, preferredVoice, reposition } = options;
@@ -27,24 +28,28 @@ export function addSelectionSpeech(toolbar, trigger, options) {
   panel.className = 'selection-speech';
   panel.id = 'margin-selection-speech';
   panel.hidden = true;
-  panel.innerHTML = `<p class="muted" data-pronunciation-language></p><label>Pronunciation voice <select></select></label><div class="row"><button type="button" data-repeat-speech disabled>Repeat</button><button type="button" data-stop-speech disabled>Stop</button></div><p class="muted" role="status"></p>`;
+  panel.innerHTML = `<p class="muted" data-pronunciation-language></p><label>Pronunciation voice <select></select></label><div class="speech-playback"><button type="button" data-speech-action disabled>Repeat</button><p class="muted" role="status"></p></div>`;
   toolbar.append(panel);
   trigger.setAttribute('aria-controls', panel.id);
   trigger.setAttribute('aria-expanded', 'false');
   const select = panel.querySelector('select');
   const languageLabel = panel.querySelector('[data-pronunciation-language]');
   const status = panel.querySelector('[role=status]');
-  const stop = panel.querySelector('[data-stop-speech]');
-  const repeat = panel.querySelector('[data-repeat-speech]');
+  const action = panel.querySelector('[data-speech-action]');
   const preferred = locale(preferredVoice) || locale('en-US');
   const declared = locale(sourceLanguage);
   let desired = preferred;
+  let voiceKey, rememberedVoice;
   let voices = [];
   let utterance, playbackTimer, closed;
+  const updateAction = () => {
+    action.textContent = utterance ? 'Stop' : 'Repeat';
+    action.disabled = !utterance && (!select.value || text.length > maxSelectionLength);
+  };
   const clearPlayback = () => {
     win.clearInterval(playbackTimer);
     utterance = undefined;
-    stop.disabled = true;
+    updateAction();
   };
   const cancel = () => {
     const wasPlaying = !!utterance;
@@ -62,11 +67,12 @@ export function addSelectionSpeech(toolbar, trigger, options) {
       }),
     );
     const voice =
+      voices.find((entry) => entry.voiceURI === rememberedVoice) ||
       voices.find((entry) => entry.voiceURI === previous) ||
       voices.find((entry) => locale(entry.lang)?.baseName === desired.baseName) ||
       voices.find((entry) => locale(entry.lang)?.language === desired.language);
     select.value = voice?.voiceURI || '';
-    repeat.disabled = !voice || text.length > 220;
+    updateAction();
     if (!utterance) {
       status.textContent = voices.length
         ? voice
@@ -79,8 +85,8 @@ export function addSelectionSpeech(toolbar, trigger, options) {
     cancel();
     const voice = voices.find((entry) => entry.voiceURI === select.value);
     if (!voice) return;
-    if (text.length > 220) {
-      status.textContent = 'Select up to 220 characters for pronunciation.';
+    if (text.length > maxSelectionLength) {
+      status.textContent = `Select up to ${maxSelectionLength} characters for pronunciation.`;
       return;
     }
     const playback = new win.SpeechSynthesisUtterance(text);
@@ -99,7 +105,7 @@ export function addSelectionSpeech(toolbar, trigger, options) {
     };
     playback.onend = () => finish('Pronunciation finished.');
     playback.onerror = (event) => finish(`The voice could not play (${event.error}).`);
-    stop.disabled = false;
+    updateAction();
     status.textContent = 'Pronouncing selection…';
     // Some system voices go idle without sending the utterance's end event.
     playbackTimer = win.setInterval(() => {
@@ -124,7 +130,7 @@ export function addSelectionSpeech(toolbar, trigger, options) {
     trigger.disabled = select.disabled = true;
     languageLabel.textContent = 'Detecting language…';
     reposition();
-    const detected = await identify(text.slice(0, 220));
+    const detected = await identify(text.slice(0, maxSelectionLength));
     const language = detected || declared || (context.trim() !== text && (await identify(context)));
     if (closed) return;
     if (language) {
@@ -137,6 +143,13 @@ export function addSelectionSpeech(toolbar, trigger, options) {
             : locale(speechLocale(language.baseName)) || language;
       languageLabel.textContent = `${detected || !declared ? 'Detected' : 'Page language'} · ${languageName(language.language)}`;
     } else languageLabel.textContent = 'Language unclear. Using your voice preference.';
+    voiceKey = 'pronunciationVoice:' + desired.language;
+    try {
+      rememberedVoice = (await extension.storage.local.get(voiceKey))[voiceKey];
+    } catch {
+      // Playback is still available when preferences cannot be read.
+    }
+    if (closed) return;
     trigger.disabled = select.disabled = false;
     loadVoices();
     synth?.addEventListener('voiceschanged', loadVoices);
@@ -144,11 +157,14 @@ export function addSelectionSpeech(toolbar, trigger, options) {
     speak();
   };
   select.onchange = () => {
-    repeat.disabled = !select.value || text.length > 220;
+    if (select.value) {
+      rememberedVoice = select.value;
+      extension.storage.local.set({ [voiceKey]: rememberedVoice }).catch(() => {});
+    }
     speak();
   };
-  repeat.onclick = speak;
-  stop.onclick = () => {
+  action.onclick = () => {
+    if (!utterance) return speak();
     cancel();
     status.textContent = 'Stopped.';
   };

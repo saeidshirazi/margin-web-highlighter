@@ -18,11 +18,32 @@ const addonPath = path.join(scratch.path, 'margin.xpi');
 const files = await archiveFiles('dist-firefox');
 // Marionette cannot look inside a closed shadow root. Open it in this test archive only.
 const closedRoot = 'host.attachShadow({ mode: "closed" })';
-const contentScript = strFromU8(files['content.js']);
-assert.ok(contentScript.includes(closedRoot));
-files['content.js'] = new TextEncoder().encode(
-  contentScript.replace(closedRoot, 'host.attachShadow({ mode: "open" })'),
-);
+function mockReaderSpeech() {
+  const synth = new EventTarget();
+  let current;
+  synth.getVoices = () =>
+    ['en-US', 'en-GB'].map((lang) => ({
+      name: lang,
+      lang,
+      voiceURI: lang,
+      localService: true,
+    }));
+  synth.speak = (utterance) => {
+    current = utterance;
+  };
+  synth.cancel = () => {};
+  Object.defineProperty(window, 'speechSynthesis', { value: synth });
+  window.SpeechSynthesisUtterance = class {};
+  window.addEventListener('margin-test-speech-end', () => current?.onend());
+}
+for (const entry of ['content.js', 'reader.js']) {
+  const script = strFromU8(files[entry]);
+  assert.ok(script.includes(closedRoot));
+  files[entry] = new TextEncoder().encode(
+    (entry === 'reader.js' ? `(${mockReaderSpeech.toString()})();\n` : '') +
+      script.replace(closedRoot, 'host.attachShadow({ mode: "open" })'),
+  );
+}
 await writeFile(addonPath, zipSync(files));
 let revised = false;
 await using server = createServer((req, res) => {
@@ -333,6 +354,43 @@ try {
   assert.ok((await text('#article')).includes('Small observations'));
   await screenshot('reader.png');
   pass('offline reader and shared annotations');
+  const readerShadow = await (await element('div[data-margin-ui]')).getShadowRoot();
+  const pronounce = async () => {
+    await select('#article p');
+    const button = await poll(
+      async () =>
+        (
+          await readerShadow.findElements(
+            By.css('[aria-label="Pronounce selection"][aria-expanded="false"]'),
+          )
+        )[0],
+      'Pronunciation control',
+    );
+    await button.click();
+    const voice = await readerShadow.findElement(By.css('.selection-speech select'));
+    await poll(() => voice.isEnabled(), 'Local voices ready');
+    return voice;
+  };
+  let voice = await pronounce();
+  await voice.findElement(By.css('option[value="en-GB"]')).click();
+  assert.equal(await voice.getAttribute('value'), 'en-GB');
+  await driver.executeScript(() => window.dispatchEvent(new Event('margin-test-speech-end')));
+  const speechAction = await readerShadow.findElement(By.css('[data-speech-action]'));
+  assert.equal(await speechAction.getText(), 'Repeat');
+  await speechAction.click();
+  assert.equal(await speechAction.getText(), 'Stop');
+  await poll(
+    () =>
+      driver.executeAsyncScript((done) => {
+        browser.storage.local
+          .get('pronunciationVoice:en')
+          .then((result) => done(result['pronunciationVoice:en'] === 'en-GB'));
+      }),
+    'Saved British voice',
+  );
+  voice = await pronounce();
+  assert.equal(await voice.getAttribute('value'), 'en-GB');
+  pass('pronunciation completion, repeat, and voice memory');
   await driver.switchTo().window(library);
   await api('add-card', {
     pageId: page.id,

@@ -6,11 +6,14 @@ export const extensionFolder = path.resolve(
   process.env.MARGIN_TEST_EXTENSION_FOLDER ||
     (browserTarget === 'chrome' ? 'dist' : `dist-${browserTarget}`),
 );
+const braveBinaries = {
+  darwin: '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+  linux: '/usr/bin/brave-browser',
+  win32: 'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+};
 export const launchOptions =
   browserTarget === 'brave'
     ? {
-        executablePath:
-          process.env.MARGIN_BRAVE_BINARY ||
-          'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+        executablePath: process.env.MARGIN_BRAVE_BINARY || braveBinaries[process.platform],
       }
     : { channel: browserTarget === 'edge' ? 'msedge' : 'chromium' };

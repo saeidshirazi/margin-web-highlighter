@@ -1,4 +1,4 @@
-# Features in Margin 0.9.8
+# Features in Margin 0.9.9
 
 [Install](docs/INSTALL.md) · [Getting started](docs/GETTING-STARTED.md) · [Browser compatibility and tests](CROSS-BROWSER.md)
 

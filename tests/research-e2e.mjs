@@ -11,7 +11,12 @@ const context = await chromium.launchPersistentContext('', {
   args: [`--disable-extensions-except=${extensionFolder}`, `--load-extension=${extensionFolder}`],
 });
 const errors = [];
-context.on('page', (page) => page.on('pageerror', (error) => errors.push(error.message)));
+context.on('page', (page) =>
+  page.on('pageerror', (error) => {
+    if (page.url().startsWith('chrome-extension:'))
+      errors.push(`${page.url()}\n${error.stack || error.message}`);
+  }),
+);
 try {
   const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
   const base = worker.url().replace('background.js', '');
@@ -138,7 +143,16 @@ try {
     .poll(() => reader.evaluate(() => window.getSelection()?.toString()))
     .toBe('ReaderNeedle');
   await expect.poll(() => reader.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
-  await reader.evaluate(() => document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
+  await reader.evaluate(async () => {
+    getSelection().anchorNode.parentElement.scrollIntoView({
+      block: 'center',
+      behavior: 'instant',
+    });
+    await new Promise((resolve) =>
+      window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)),
+    );
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
   const toolbar = reader.getByRole('toolbar', { name: 'Highlight selection' });
   await toolbar.getByRole('button', { name: 'Pronounce selection' }).click();
   await expect
@@ -156,12 +170,16 @@ try {
   const repeatSpeech = toolbar.getByRole('button', { name: 'Repeat', exact: true });
   const speechStatus = toolbar.locator('.selection-speech [role=status]');
   await expect(stopSpeech).toBeEnabled();
+  const playbackSize = await stopSpeech.boundingBox();
+  await expect(repeatSpeech).toHaveCount(0);
   await reader.evaluate(() => {
     globalThis.speechSynthesis.speaking = false;
   });
   await expect(speechStatus).toHaveText('Pronunciation finished.');
-  await expect(stopSpeech).toBeDisabled();
-  await repeatSpeech.click();
+  await expect(stopSpeech).toHaveCount(0);
+  assert.equal((await repeatSpeech.boundingBox()).width, playbackSize.width);
+  await repeatSpeech.focus();
+  await repeatSpeech.press('Enter');
   await expect
     .poll(() => reader.evaluate(() => globalThis.spokenSelections.slice(-2)))
     .toEqual([
@@ -174,7 +192,13 @@ try {
     globalThis.currentSpeech.onend();
   });
   await expect(speechStatus).toHaveText('Pronunciation finished.');
-  await expect(stopSpeech).toBeDisabled();
+  await expect(stopSpeech).toHaveCount(0);
+  await expect(repeatSpeech).toBeFocused();
+  await repeatSpeech.press('Enter');
+  await stopSpeech.press('Enter');
+  await expect(speechStatus).toHaveText('Stopped.');
+  await expect(stopSpeech).toHaveCount(0);
+  await expect(repeatSpeech).toBeFocused();
   let webRequests = 0;
   await context.route('https://translate.google.com/**', async (route) => {
     webRequests++;
@@ -219,6 +243,20 @@ try {
   await expect
     .poll(() => reader.evaluate(() => globalThis.spokenSelections.at(-1)))
     .toEqual([french, 'fr']);
+  await reader.evaluate(() => {
+    const paragraph = document.querySelector('#article p');
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await expect(toolbar.getByRole('button', { name: 'Pronounce selection' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await toolbar.getByRole('button', { name: 'Pronounce selection' }).click();
+  await expect(toolbar.getByLabel('Pronunciation voice')).toHaveValue('uk');
   await reader.evaluate(() => window.scrollTo(0, 700));
   await expect.poll(() => reader.evaluate(() => window.scrollY)).toBe(700);
   await reader.waitForTimeout(350);
