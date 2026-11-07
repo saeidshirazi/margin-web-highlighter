@@ -55,6 +55,7 @@ const entries = [
   'print',
   'capture',
   'practice',
+  'proofreading-worker',
 ];
 await Promise.all(
   entries.map((name) =>
@@ -65,6 +66,8 @@ await Promise.all(
       format: name === 'content' ? 'iife' : 'esm',
       target: target === 'firefox' ? 'firefox150' : 'chrome150',
       define: {
+        // Harper also has a Node-only filesystem loader. The worker uses the browser loader.
+        ...(name === 'proofreading-worker' ? { process: 'undefined' } : {}),
         __MARGIN_TARGET__: JSON.stringify(target),
         __MARGIN_WEB_CLIENT_ID__: JSON.stringify(oauthWebClientId),
         __MARGIN_TRANSLATION_RELAY_URL__: JSON.stringify(relayUrl),
@@ -74,7 +77,9 @@ await Promise.all(
     }),
   ),
 );
-for (const name of entries.filter((n) => !['background', 'content'].includes(n))) {
+for (const name of entries.filter(
+  (n) => !['background', 'content', 'proofreading-worker'].includes(n),
+)) {
   await writeFile(
     `${folder}/${name}.html`,
     `<!doctype html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Margin · ${name === 'library' ? 'Your local library' : name}</title><link rel="icon" href="icons/32.png"><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="polish.css"><link rel="stylesheet" href="workspace.css"></head><body><div id="app"><p class="loading">Opening your reading space…</p></div><script type="module" src="${name}.js"></script></body></html>\n`,
@@ -83,6 +88,10 @@ for (const name of entries.filter((n) => !['background', 'content'].includes(n))
 await cp('src/styles.css', `${folder}/styles.css`);
 await cp('src/polish.css', `${folder}/polish.css`);
 await cp('src/workspace.css', `${folder}/workspace.css`);
+await cp(
+  'node_modules/harper.js/dist/harper_wasm_slim_bg.wasm',
+  `${folder}/harper_wasm_slim_bg.wasm`,
+);
 await cp('node_modules/pdfjs-dist/web/pdf_viewer.css', `${folder}/pdf_viewer.css`);
 await cp('node_modules/pdfjs-dist/build/pdf.worker.min.mjs', `${folder}/pdf.worker.mjs`);
 for (const folder of ['cmaps', 'standard_fonts', 'wasm', 'web/images'])
@@ -112,6 +121,7 @@ async function thirdParty() {
     'pako',
     'tslib',
     'fflate',
+    'harper.js',
   ];
   let text = 'Margin bundles the following open-source libraries.\n\n';
   for (const pkg of packages) {

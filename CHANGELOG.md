@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.3
+
+- Added on-device English proofreading for library notes and Quick Note drafts. Review suggestions as you type, then apply or ignore them individually.
+
 ## 0.9.2
 
 - Made PDF saves, settings patches, and study reviews atomic. Repeated undo keeps newer highlight edits.

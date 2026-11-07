@@ -394,9 +394,52 @@ try {
     true,
     'Continue-reading title and progress should stack on a narrow screen',
   );
+
+  await library.setViewportSize({ width: 1280, height: 720 });
+  await search.fill('Research article');
+  await library.locator('.card-body').first().click();
+  await library.getByRole('button', { name: 'Edit page', exact: true }).click();
+  const editor = library.getByRole('dialog');
+  const note = editor.locator('textarea[name=note]');
+  const prose = '😀 This is a example.';
+  const protectedText =
+    '\n\n> This is a example.\n\n`This is a example.`\n\n“This is a example.”\n\nhttps://example.test/a-example\n\nاین یک نمونه است.';
+  await note.fill(prose + protectedText);
+  await context.setOffline(true);
+  await editor.getByText('Proofread note · English', { exact: true }).click();
+  const replacement = editor.getByRole('button', { name: 'Apply “an”', exact: true });
+  await expect(replacement).toHaveCount(1, { timeout: 20000 });
+  await expect(note).toHaveValue(prose + protectedText);
+  await replacement.locator('xpath=../..').locator('button').first().click();
+  await expect
+    .poll(() =>
+      note.evaluate((field) => field.value.slice(field.selectionStart, field.selectionEnd)),
+    )
+    .toBe('a');
+  await replacement.click();
+  await expect(note).toHaveValue('😀 This is an example.' + protectedText);
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+  const [capture] = await Promise.all([
+    context.waitForEvent('page'),
+    api('open-capture', { pageId: source.id }),
+  ]);
+  const draft = capture.locator('textarea[name=note]');
+  await draft.fill('This is a example.');
+  await capture.getByText('Proofread note · English', { exact: true }).click();
+  const correction = capture.getByRole('button', { name: 'Apply “an”', exact: true });
+  await expect(correction).toBeVisible({ timeout: 20000 });
+  await correction.locator('xpath=..').getByRole('button', { name: 'Ignore', exact: true }).click();
+  await expect(correction).toHaveCount(0);
+  await expect(draft).toHaveValue('This is a example.');
+  await capture.getByRole('button', { name: 'Save note & audio' }).click();
+  await expect(draft).toHaveValue('');
+  await expect(capture.locator('[data-proofread-issues] li')).toHaveCount(0);
+  await capture.close();
+  await context.setOffline(false);
   assert.deepEqual(errors, []);
   console.log(
-    `PASS ${browserTarget}: pronunciation, translation, research tools, search, resume, highlights view, quote copying, and encrypted restore preview.`,
+    `PASS ${browserTarget}: pronunciation, translation, research tools, search, resume, highlights, encrypted restore preview, and offline proofreading.`,
   );
 } finally {
   await context.close();

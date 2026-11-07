@@ -41,9 +41,11 @@ async function init() {
       let tasks = [];
       form.dispatchEvent(new CustomEvent('margin-before-submit', { detail: { tasks } }));
       await Promise.all(tasks);
-      const note = form.querySelector('[name=note]').value;
+      const field = form.querySelector('[name=note]');
+      const note = field.value;
       if (note.trim()) await api('append-note', { pageId: id, highlightId, text: note });
-      form.querySelector('[name=note]').value = '';
+      field.value = '';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
       tasks = [];
       form.dispatchEvent(
         new CustomEvent('margin-save-attachments', {
@@ -51,7 +53,6 @@ async function init() {
         }),
       );
       await Promise.all(tasks);
-      form.querySelector('[name=note]').value = '';
       root.querySelector('#save-status').textContent = 'Saved locally. You can keep adding notes.';
       await loadAudio();
     } catch (error) {
