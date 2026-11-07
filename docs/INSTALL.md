@@ -45,6 +45,10 @@ For updates retaining the same extension ID:
 
 Do not uninstall Margin to update it. Unpacked downloads update manually. To move between browsers, import a full JSON backup in the destination browser, or connect the same Google account using official configured public downloads.
 
+### Get update alerts
+
+In Margin 0.9.1 or later, open **Settings & backups → Extension updates** and turn on **Check GitHub for updates**. Margin checks when you enable the setting and about once a day while the browser is running. A toolbar badge and release link appear when a newer version is available. You can also use **Check now**. Download the package for your browser and follow the manual update steps above.
+
 ## Permissions
 
 | Request                              | Why Margin needs it                                                                                                  |

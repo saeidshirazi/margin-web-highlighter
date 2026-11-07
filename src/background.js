@@ -3,6 +3,7 @@ import * as db from './db.js';
 import { canonicalUrl } from './core.js';
 import { createDriveSync } from './drive-sync.js';
 import { validateTranslation } from './translation.js';
+import { createReleaseUpdates } from './release-updates.js';
 let queue = Promise.resolve();
 function serialize(run) {
   const result = queue.then(run);
@@ -10,6 +11,7 @@ function serialize(run) {
   return result;
 }
 const drive = createDriveSync({ db, serialize });
+const releaseUpdates = createReleaseUpdates();
 const mutations = new Set([
   'save-page',
   'organize-collection',
@@ -273,7 +275,11 @@ extension.runtime.onMessage.addListener((message, sender, reply) => {
     ? extensionSender(sender)
       ? drive.handle(message.type, message.payload)
       : Promise.reject(new Error('Open Google Drive settings in the Margin library.'))
-    : serialize(run);
+    : message.type.startsWith('release-')
+      ? extensionSender(sender)
+        ? releaseUpdates.handle(message.type, message.payload)
+        : Promise.reject(new Error('Open Settings & backups in the Margin library.'))
+      : serialize(run);
   result
     .then(async (data) => {
       reply({ ok: true, data });
@@ -282,11 +288,14 @@ extension.runtime.onMessage.addListener((message, sender, reply) => {
   return true;
 });
 extension.alarms.onAlarm.addListener((alarm) => drive.onAlarm(alarm).catch(() => {}));
+extension.alarms.onAlarm.addListener((alarm) => releaseUpdates.onAlarm(alarm)?.catch(() => {}));
 extension.runtime.onStartup.addListener(() => drive.schedule().catch(() => {}));
+extension.runtime.onStartup.addListener(() => releaseUpdates.schedule().catch(() => {}));
 extension.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.revision) drive.schedule().catch(() => {});
 });
 drive.schedule().catch(() => {});
+releaseUpdates.schedule().catch(() => {});
 extension.runtime.onInstalled.addListener(async () => {
   await extension.contextMenus.removeAll();
   extension.contextMenus.create({
