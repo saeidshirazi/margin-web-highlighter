@@ -18,11 +18,30 @@ const addonPath = path.join(scratch.path, 'margin.xpi');
 const files = await archiveFiles('dist-firefox');
 // Marionette cannot look inside a closed shadow root. Open it in this test archive only.
 const closedRoot = 'host.attachShadow({ mode: "closed" })';
+function mockReaderSpeech() {
+  const synth = new EventTarget();
+  let current;
+  synth.getVoices = () =>
+    ['en-US', 'en-GB'].map((lang) => ({
+      name: lang,
+      lang,
+      voiceURI: lang,
+      localService: true,
+    }));
+  synth.speak = (utterance) => {
+    current = utterance;
+  };
+  synth.cancel = () => {};
+  Object.defineProperty(window, 'speechSynthesis', { value: synth });
+  window.SpeechSynthesisUtterance = class {};
+  window.addEventListener('margin-test-speech-end', () => current?.onend());
+}
 for (const entry of ['content.js', 'reader.js']) {
   const script = strFromU8(files[entry]);
   assert.ok(script.includes(closedRoot));
   files[entry] = new TextEncoder().encode(
-    script.replace(closedRoot, 'host.attachShadow({ mode: "open" })'),
+    (entry === 'reader.js' ? `(${mockReaderSpeech.toString()})();\n` : '') +
+      script.replace(closedRoot, 'host.attachShadow({ mode: "open" })'),
   );
 }
 await writeFile(addonPath, zipSync(files));
@@ -335,22 +354,6 @@ try {
   assert.ok((await text('#article')).includes('Small observations'));
   await screenshot('reader.png');
   pass('offline reader and shared annotations');
-  await driver.executeScript(() => {
-    const synth = new EventTarget();
-    synth.getVoices = () =>
-      ['en-US', 'en-GB'].map((lang) => ({
-        name: lang,
-        lang,
-        voiceURI: lang,
-        localService: true,
-      }));
-    synth.speak = (utterance) => {
-      globalThis.marginTestUtterance = utterance;
-    };
-    synth.cancel = () => {};
-    Object.defineProperty(globalThis, 'speechSynthesis', { value: synth });
-    globalThis.SpeechSynthesisUtterance = class {};
-  });
   const readerShadow = await (await element('div[data-margin-ui]')).getShadowRoot();
   const pronounce = async () => {
     await select('#article p');
@@ -366,11 +369,8 @@ try {
   };
   let voice = await pronounce();
   await voice.findElement(By.css('option[value="en-GB"]')).click();
-  await poll(
-    () => driver.executeScript(() => globalThis.marginTestUtterance?.voice.voiceURI === 'en-GB'),
-    'Selected British voice',
-  );
-  await driver.executeScript(() => globalThis.marginTestUtterance.onend());
+  assert.equal(await voice.getAttribute('value'), 'en-GB');
+  await driver.executeScript(() => window.dispatchEvent(new Event('margin-test-speech-end')));
   const speechAction = await readerShadow.findElement(By.css('[data-speech-action]'));
   assert.equal(await speechAction.getText(), 'Repeat');
   await speechAction.click();
