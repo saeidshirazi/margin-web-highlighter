@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.9
+
+- Remember the last pronunciation voice chosen for each language.
+- Use one fixed-width button that switches between Stop and Repeat.
+
 ## 0.9.8
 
 - The pronunciation toolbar detects when playback finishes and offers Repeat with the selected voice.
