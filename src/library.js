@@ -34,6 +34,8 @@ import { openTranslation } from './translation-ui.js';
 import { renderAudioNotes } from './audio-notes.js';
 import { openReadAloud } from './read-aloud.js';
 import { addDriveSettings } from './drive-ui.js';
+import { addReleaseSettings, showReleaseNotice } from './release-update-ui.js';
+import { releaseUpdateKey } from './release-updates.js';
 import { addExperience, addExperienceSettings, revealGuide } from './experience-ui.js';
 let releaseDetailAudio = () => {};
 let organizationUndo, organizationMessage;
@@ -79,8 +81,9 @@ function render() {
     )
     .join(
       '',
-    )}</div><div class="nav-label eyebrow">Collections<button class="icon-btn" data-action="collection" aria-label="New collection">${icon('plus', 14)}</button></div><div class="collections nav" data-collection-tree aria-label="Collections"></div><div class="sidebar-foot"><div class="nav"><button data-view="settings" class="${view === 'settings' ? 'active' : ''}">${icon('settings')}Settings & backups</button></div><div class="local-badge"><i class="dot"></i>Local first. Always yours.</div></div></aside><main class="workspace ${detailId && !detailsCollapsed ? 'details-open' : ''}" style="--details-width:${state.settings.detailWidth}px"><header class="topbar"><div class="search">${icon('search')}<input id="search" aria-label="Search library" placeholder="Search highlights, notes, and pages…" value="${esc(filters.query || '')}"></div><span class="key">Ctrl K</span>${action('export', view === 'highlights' ? 'Export sources' : 'Export', 'arrow')}${action('add', 'Add to library', 'plus', 'primary')}</header><div class="content" id="content"></div></main></div>`;
+    )}</div><div class="nav-label eyebrow">Collections<button class="icon-btn" data-action="collection" aria-label="New collection">${icon('plus', 14)}</button></div><div class="collections nav" data-collection-tree aria-label="Collections"></div><div class="sidebar-foot"><div class="nav"><button data-view="settings" class="${view === 'settings' ? 'active' : ''}">${icon('settings')}Settings & backups</button></div><div class="local-badge"><i class="dot"></i>Local first. Always yours.</div></div></aside><main class="workspace ${detailId && !detailsCollapsed ? 'details-open' : ''}" style="--details-width:${state.settings.detailWidth}px"><header class="topbar"><div class="search">${icon('search')}<input id="search" aria-label="Search library" placeholder="Search highlights, notes, and pages…" value="${esc(filters.query || '')}"></div><span class="key">Ctrl K</span>${action('export', view === 'highlights' ? 'Export sources' : 'Export', 'arrow')}${action('add', 'Add to library', 'plus', 'primary')}<div data-release-notice hidden></div></header><div class="content" id="content"></div></main></div>`;
   renderContent();
+  refreshReleaseNotice();
   const search = app.querySelector('#search');
   search.oninput = () => {
     filters.query = search.value;
@@ -821,6 +824,7 @@ function renderSettings(content) {
     },
   });
   addDriveSettings(content);
+  addReleaseSettings(content);
   bindActions(content);
 }
 function renderStudy(content) {
@@ -1120,7 +1124,11 @@ else if (hash === '#unfiled') filters = { unfiled: true };
 else if (hash.startsWith('#collection='))
   filters = { collection: decodeURIComponent(hash.slice(12)) };
 else if (hash.startsWith('#page=')) detailId = decodeURIComponent(hash.slice(6));
-extension.storage.onChanged.addListener((changes) => {
+function refreshReleaseNotice() {
+  showReleaseNotice(app.querySelector('[data-release-notice]')).catch(() => {});
+}
+extension.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[releaseUpdateKey]) refreshReleaseNotice();
   if (changes.readingRevision && state) mountContinueReading().catch((e) => toast(e.message));
   if ((changes.revision || changes.deviceRevision) && !document.querySelector('dialog[open]'))
     refresh().catch((e) => toast(e.message));

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1
+
+- Added optional GitHub release alerts. Enable checks in **Settings & backups → Extension updates** to see a toolbar badge and release link when a newer version is available.
+
 ## 0.9.0
 
 - Browse individual quotes and notes across sources in the new Highlights view. Search and combine filters, then open the matching annotation or PDF page.

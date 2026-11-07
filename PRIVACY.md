@@ -1,8 +1,12 @@
 # Margin privacy policy
 
-Effective date: November 5, 2026. Applies to versions 0.8.1 through 0.9.0.
+Effective date: November 6, 2026. Applies to versions 0.8.1 through 0.9.1. Update alerts are available from 0.9.1.
 
 Chrome, Edge, Brave, and Firefox store research in their own extension databases. Official public Chrome, Edge, Brave and Firefox packages use browser-managed web OAuth with a verified random state and exact callback; access tokens are cached only in extension session storage until expiry. Legacy configured Chrome development builds can still use Chrome’s native Google token service. Public OAuth client IDs and public identity keys are intentionally published; they grant no account access without Google consent. No client secret is included. Firefox requests optional website-content, browsing-activity, and identifying-information transmission consent for Drive/in-app Google translation; voice recordings fall within identifying information. No optional transmission is required for local research. See [CROSS-BROWSER.md](CROSS-BROWSER.md) for API differences and installation.
+
+## Optional release alerts
+
+If you enable release alerts, Margin requests the latest public release from `api.github.com` when enabled, about once a day while the browser runs, and when you select **Check now**. GitHub receives normal connection information such as your IP address. Margin sends no account credentials, installed version, or research data. The setting and last detected release version are kept on this device and excluded from backups and Google Drive sync. Turning alerts off stops checks.
 
 ## Collection organization and saved export presets
 
