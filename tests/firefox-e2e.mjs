@@ -359,7 +359,11 @@ try {
     await select('#article p');
     const button = await poll(
       async () =>
-        (await readerShadow.findElements(By.css('[aria-label="Pronounce selection"]')))[0],
+        (
+          await readerShadow.findElements(
+            By.css('[aria-label="Pronounce selection"][aria-expanded="false"]'),
+          )
+        )[0],
       'Pronunciation control',
     );
     await button.click();
