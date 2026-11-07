@@ -78,7 +78,8 @@ textarea,
 select {
   -webkit-tap-highlight-color: transparent;
 }
-button {
+button,
+a.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -93,8 +94,12 @@ button {
     background 0.15s,
     transform 0.15s;
 }
-button:hover {
+button:hover,
+a.button:hover {
   background: var(--tint);
+}
+a.button {
+  text-decoration: none;
 }
 button:disabled {
   opacity: 0.5;

@@ -379,7 +379,21 @@ try {
   await expect(library.locator('[data-injected]')).toHaveCount(0);
   await expect(library.locator('[data-edit]').last()).toHaveAttribute('data-edit', unusualId);
   await library.goto(base + 'library.html#collection=%');
+  await library.reload();
   await expect(library.locator('[data-view=all]')).toHaveAttribute('aria-current', 'page');
+  await library.setViewportSize({ width: 390, height: 844 });
+  const resumeLink = recent.getByRole('link').first();
+  await expect(resumeLink).toBeVisible();
+  const stacked = await resumeLink.evaluate(
+    (link) =>
+      link.querySelector('strong').getBoundingClientRect().bottom <=
+      link.querySelector('small').getBoundingClientRect().top,
+  );
+  assert.equal(
+    stacked,
+    true,
+    'Continue-reading title and progress should stack on a narrow screen',
+  );
   assert.deepEqual(errors, []);
   console.log(
     `PASS ${browserTarget}: pronunciation, translation, research tools, search, resume, highlights view, quote copying, and encrypted restore preview.`,
