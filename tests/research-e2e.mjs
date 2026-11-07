@@ -138,7 +138,14 @@ try {
     .poll(() => reader.evaluate(() => window.getSelection()?.toString()))
     .toBe('ReaderNeedle');
   await expect.poll(() => reader.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
-  await reader.evaluate(() => document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
+  await reader.evaluate(async () => {
+    getSelection().anchorNode.parentElement.scrollIntoView({
+      block: 'center',
+      behavior: 'instant',
+    });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
   const toolbar = reader.getByRole('toolbar', { name: 'Highlight selection' });
   await toolbar.getByRole('button', { name: 'Pronounce selection' }).click();
   await expect
