@@ -95,15 +95,14 @@ try {
       tabId,
       action,
     });
-  await worker.evaluate(
-    ({ tabId, id }) => chrome.tabs.sendMessage(tabId, { action: 'focus', id }),
-    {
+  const firstHighlightId = state.highlights[0].id;
+  const openAnnotation = () =>
+    worker.evaluate(({ tabId, id }) => chrome.tabs.sendMessage(tabId, { action: 'focus', id }), {
       tabId,
-      id: state.highlights[0].id,
-    },
-  );
+      id: firstHighlightId,
+    });
+  await openAnnotation();
   const cdp = await context.newCDPSession(article);
-  const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
   function marginShadow(node) {
     if (node.attributes?.includes('data-margin-ui') && node.shadowRoots?.length)
       return node.shadowRoots[0];
@@ -112,12 +111,17 @@ try {
       if (found) return found;
     }
   }
-  const { object } = await cdp.send('DOM.resolveNode', {
-    backendNodeId: marginShadow(root).backendNodeId,
-  });
+  async function resolvePopupRoot() {
+    const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    const { object } = await cdp.send('DOM.resolveNode', {
+      backendNodeId: marginShadow(root).backendNodeId,
+    });
+    return object.objectId;
+  }
+  let popupRoot = await resolvePopupRoot();
   async function inPopup(fn) {
     const { result, exceptionDetails } = await cdp.send('Runtime.callFunctionOn', {
-      objectId: object.objectId,
+      objectId: popupRoot,
       functionDeclaration: fn.toString(),
       returnByValue: true,
     });
@@ -161,13 +165,66 @@ try {
     }),
     'This is an example.',
   );
+  await context.setOffline(false);
+  const draftVisible = () =>
+    inPopup(function () {
+      const restore = this.querySelector('[data-restore-draft]');
+      return !!restore && !restore.closest('[hidden]');
+    });
+  assert.equal((await snap()).highlights[0].note, '');
+  await article.reload();
+  await expect.poll(() => article.evaluate(() => CSS.highlights.size)).toBe(1);
+  await openAnnotation();
+  popupRoot = await resolvePopupRoot();
+  await expect.poll(draftVisible).toBe(true);
+  await inPopup(function () {
+    this.querySelector('[data-restore-draft]').click();
+  });
+  assert.equal(
+    await inPopup(function () {
+      return this.querySelector('[data-note]').value;
+    }),
+    'This is an example.',
+  );
   await inPopup(function () {
     this.querySelector('[data-save]').click();
   });
   await expect.poll(async () => (await snap()).highlights[0].note).toBe('This is an example.');
-  await context.setOffline(false);
+  await expect
+    .poll(() =>
+      inPopup(function () {
+        return this.querySelector('.toast')?.textContent;
+      }),
+    )
+    .toBe('Note saved');
+  await openAnnotation();
+  await expect
+    .poll(() =>
+      inPopup(function () {
+        const field = this.querySelector('[data-note]');
+        if (!field) return false;
+        field.focus();
+        field.select();
+        return true;
+      }),
+    )
+    .toBe(true);
+  await article.keyboard.press('Backspace');
+  await inPopup(function () {
+    this.querySelector('[data-close]').click();
+  });
+  await openAnnotation();
+  await expect.poll(draftVisible).toBe(true);
+  await inPopup(function () {
+    this.querySelector('[data-discard-draft]').click();
+  });
+  await expect.poll(draftVisible).toBe(false);
+  assert.equal((await snap()).highlights[0].note, 'This is an example.');
+  await inPopup(function () {
+    this.querySelector('[data-close]').click();
+  });
   await cdp.detach();
-  console.log('PASS: website annotation proofreads offline and saves the chosen correction');
+  console.log('PASS: offline proofreading, draft recovery after reload, save and discard');
   await send('bookmark');
   await select(article, '#passage');
   await send('highlight');

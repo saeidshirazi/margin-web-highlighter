@@ -3,6 +3,44 @@ import { IDBObjectStore } from 'fake-indexeddb';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as db from '../src/db.js';
+
+test('website drafts stay separate from saved notes and survive stale save or discard requests', async () => {
+  const page = await db.savePage({ url: 'https://draft.example/', title: 'Drafts' });
+  const highlight = await db.addHighlight({
+    pageId: page.id,
+    text: 'Quote',
+    color: '#ffe08a',
+    anchor: { exact: 'Quote', start: 0, end: 5 },
+  });
+  const id = highlight.id;
+  const getDraft = () => db.noteDraft(id, { action: 'get' });
+  const writeDraft = (token, text) => db.noteDraft(id, { action: 'write', token, text });
+  try {
+    await writeDraft('old', 'First edit');
+    await writeDraft('new', 'Newer edit');
+    await db.noteDraft(id, { action: 'discard', token: 'old' });
+    await db.updateHighlight(id, { note: 'First edit' }, 'old');
+    assert.deepEqual(await getDraft(), { token: 'new', text: 'Newer edit' });
+    assert.equal(
+      (await db.snapshot()).highlights.find((item) => item.id === id).note,
+      'First edit',
+    );
+    await db.updateHighlight(id, { note: 'Newer edit' }, 'new');
+    assert.equal(await getDraft(), null);
+    await writeDraft('empty', '');
+    assert.deepEqual(await getDraft(), { token: 'empty', text: '' });
+    await db.noteDraft(id, { action: 'discard', token: 'empty' });
+    assert.equal(await getDraft(), null);
+    await writeDraft('delete', 'Unsaved');
+    await db.restoreHighlight(await db.removeHighlight(id));
+    assert.equal(await getDraft(), null);
+    await writeDraft('cascade', 'Unsaved again');
+  } finally {
+    await db.removePage(page.id);
+  }
+  assert.equal(await getDraft(), null);
+});
+
 test('database lifecycle, merge, invalid import atomicity and deletion cascade', async () => {
   const page = await db.savePage({
     url: 'https://test.example/read',

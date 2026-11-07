@@ -264,13 +264,24 @@ try {
   }, 'Website proofreading suggestion');
   await correction.click();
   assert.equal(await draft.getAttribute('value'), 'This is an example.');
+  await (await popup.findElement(By.css('[data-close]'))).click();
+  await click('#passage strong');
+  const restoreDraft = await poll(async () => {
+    const [button] = await popup.findElements(By.css('[data-restore-draft]'));
+    if (button && (await button.isDisplayed())) return button;
+  }, 'Website annotation draft recovery');
+  await restoreDraft.click();
+  assert.equal(
+    await (await popup.findElement(By.css('[data-note]'))).getAttribute('value'),
+    'This is an example.',
+  );
   await (await popup.findElement(By.css('[data-save]'))).click();
   await driver.switchTo().window(library);
   await poll(
     async () => (await api('snapshot')).highlights[0].note === 'This is an example.',
     'Saved popup note',
   );
-  pass('native Firefox website annotation proofreads and saves the corrected draft');
+  pass('native Firefox website annotation proofreads, recovers and saves the corrected draft');
   await api('update-highlight', {
     id: h.id,
     patch: { note: '**Firefox note**', tags: 'browser, research', color: '#a8e6cf' },

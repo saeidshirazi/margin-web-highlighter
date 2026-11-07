@@ -54,6 +54,7 @@ async function handle(type, p, sender) {
       'save-page',
       'add-highlight',
       'update-highlight',
+      'note-draft',
       'repair-highlight',
       'delete-highlight',
       'restore-highlight',
@@ -91,6 +92,7 @@ async function handle(type, p, sender) {
       [
         'add-highlight',
         'update-highlight',
+        'note-draft',
         'repair-highlight',
         'delete-highlight',
         'restore-highlight',
@@ -178,7 +180,9 @@ async function handle(type, p, sender) {
     case 'add-highlight':
       return db.addHighlight(p);
     case 'update-highlight':
-      return db.updateHighlight(p.id, p.patch);
+      return db.updateHighlight(p.id, p.patch, p.draftToken);
+    case 'note-draft':
+      return db.noteDraft(p.id, p);
     case 'repair-highlight':
       return db.repairHighlight(p.id, p);
     case 'device-experience':

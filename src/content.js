@@ -92,7 +92,7 @@ async function start() {
       const page = await save();
       return api('add-highlight', { ...input, pageId: page.id });
     },
-    update: (id, patch) => api('update-highlight', { id, patch }),
+    update: (id, patch, draftToken) => api('update-highlight', { id, patch, draftToken }),
     repair: (id, input) => api('repair-highlight', { id, ...input }),
     remove: (id) => api('delete-highlight', { id }),
     restore: (item) => api('restore-highlight', { item }),
@@ -107,6 +107,7 @@ async function start() {
     onPanel: () => api('open-panel'),
     onColor: (color) => api('set-color', { color }),
     onProofread: (text) => api('proofread-note', { text }),
+    onNoteDraft: (id, draft) => api('note-draft', { id, ...draft }),
     onCapture: (mode, item) =>
       api('open-capture', { mode, title: document.title, highlightId: item?.id }),
   });
