@@ -67,8 +67,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - if: matrix.browser == 'chrome'
+      - if: matrix.browser == 'chrome' && runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
+      - if: matrix.browser == 'chrome' && runner.os != 'Linux'
+        run: npx playwright install chromium
       - if: matrix.browser == 'firefox'
         run: npx playwright install --with-deps firefox
       - if: matrix.browser == 'edge' && runner.os == 'macOS'

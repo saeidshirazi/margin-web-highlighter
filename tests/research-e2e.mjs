@@ -11,7 +11,9 @@ const context = await chromium.launchPersistentContext('', {
   args: [`--disable-extensions-except=${extensionFolder}`, `--load-extension=${extensionFolder}`],
 });
 const errors = [];
-context.on('page', (page) => page.on('pageerror', (error) => errors.push(error.message)));
+context.on('page', (page) =>
+  page.on('pageerror', (error) => errors.push(`${page.url()}\n${error.stack || error.message}`)),
+);
 try {
   const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
   const base = worker.url().replace('background.js', '');
