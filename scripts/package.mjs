@@ -1,10 +1,10 @@
-import { zipSync } from 'fflate';
 import { access, cp, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { archiveFiles } from './archive-files.mjs';
+import { archiveFiles, zipArchive } from './archive-files.mjs';
 import { targets } from './browser-manifest.mjs';
 import { scratchDirectory } from './scratch-directory.mjs';
+import { packageChromeStore } from './package-chrome-store.mjs';
 
 const publicBuild = process.argv.includes('--public');
 const { version } = JSON.parse(await readFile('package.json', 'utf8'));
@@ -43,10 +43,13 @@ for (const [target, folder] of Object.entries(targets)) {
   const suffix = target === 'firefox' ? 'firefox-unsigned.xpi' : `${target}.zip`;
   await writeFile(
     `${releaseDir}/margin-${version}-${suffix}`,
-    zipSync(await archiveFiles(output), { level: 6 }),
+    zipArchive(await archiveFiles(output)),
   );
   await cp(output, publicBuild ? `work/public-${target}` : folder, { recursive: true });
 }
+
+// Include the store-safe Chrome variant in the same versioned release kit.
+if (publicBuild) await packageChromeStore(releaseDir);
 
 // Keep this inventory usable in an extracted source ZIP without Git metadata.
 const rootFiles = new Set([
@@ -98,7 +101,7 @@ const source = await archiveFiles('.', (name, entry) =>
     ? sourceFolders.has(name)
     : rootFiles.has(name) || sourcePatterns.some((pattern) => pattern.test(name)),
 );
-await writeFile(`${releaseDir}/margin-${version}-source.zip`, zipSync(source, { level: 6 }));
+await writeFile(`${releaseDir}/margin-${version}-source.zip`, zipArchive(source));
 console.log(
   `Packaged Margin ${version} for four browsers and archived the source in ${releaseDir}/.`,
 );

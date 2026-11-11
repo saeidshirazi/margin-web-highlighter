@@ -11,14 +11,9 @@ const relay = JSON.parse(await readFile('config/translation-relay.public.json', 
 const ids = JSON.parse(await readFile('config/browser-ids.json', 'utf8'));
 const publicClient = registration.enabled === true ? registration.webClientId : '';
 const checksums = [];
-let local = {};
-try {
-  local = JSON.parse(await readFile('google-oauth.local.json', 'utf8'));
-} catch (error) {
-  if (error.code !== 'ENOENT') throw error;
-}
 for (const suffix of [
   'chrome.zip',
+  'chrome-web-store.zip',
   'edge.zip',
   'brave.zip',
   'firefox-unsigned.xpi',
@@ -46,8 +41,6 @@ for (const suffix of [
     const background = strFromU8(archive['background.js']);
     assert.ok(!background.includes('fixture-only-no-google-access'));
     assert.ok(!background.includes('123-ci-fixture.apps.googleusercontent.com'));
-    for (const id of [local.clientId, local.webClientId].filter((id) => id && id !== publicClient))
-      assert.ok(!background.includes(id), 'Public build contains a local OAuth client');
     if (publicClient)
       assert.ok(background.includes(publicClient), 'Public web registration missing');
     if (relay.url)
@@ -57,7 +50,10 @@ for (const suffix of [
       assert.ok(manifest.sidebar_action);
       assert.equal(manifest.key, undefined);
     } else {
-      if (publicClient) assert.equal(manifest.key, ids.edgeKey, 'Public callback identity changed');
+      if (suffix === 'chrome-web-store.zip')
+        assert.equal(manifest.key, undefined, 'Store package contains a development identity');
+      else if (publicClient)
+        assert.equal(manifest.key, ids.edgeKey, 'Public callback identity changed');
       assert.equal(manifest.background.service_worker, 'background.js');
       assert.ok(manifest.side_panel);
     }

@@ -49,3 +49,39 @@ test('sidebar buttons invoke Firefox or Chromium native APIs without requiring a
   await openSidebar(42, { sidePanel: { open: (options) => calls.push(options) } });
   assert.deepEqual(calls, ['firefox', { tabId: 42 }]);
 });
+
+test('Chrome Store builds omit development identities without changing unpacked builds', async () => {
+  const base = JSON.parse(await readFile('public/manifest.json'));
+  const ids = JSON.parse(await readFile('config/browser-ids.json'));
+  const google = {
+    enabled: true,
+    webClientId: '123-public.apps.googleusercontent.com',
+    clientId: '123-local.apps.googleusercontent.com',
+    extensionKey: 'local-key',
+  };
+  const contaminated = { ...base, key: ids.edgeKey, oauth2: { client_id: google.clientId } };
+  const store = browserManifest(contaminated, 'chrome', google, ids, {
+    publicBuild: true,
+    chromeWebStore: true,
+  });
+  assert.equal(store.key, undefined);
+  assert.equal(store.oauth2, undefined);
+  assert.equal(contaminated.key, ids.edgeKey);
+  assert.equal(contaminated.oauth2.client_id, google.clientId);
+  assert.deepEqual(store.permissions, base.permissions);
+  assert.equal(
+    browserManifest(base, 'chrome', google, ids, { publicBuild: true }).key,
+    ids.edgeKey,
+  );
+});
+
+test('the store build cannot select another browser or local OAuth registration', () => {
+  assert.throws(
+    () => browserManifest({}, 'edge', {}, {}, { publicBuild: true, chromeWebStore: true }),
+    /public Chrome/,
+  );
+  assert.throws(
+    () => browserManifest({}, 'chrome', {}, {}, { chromeWebStore: true }),
+    /public Chrome/,
+  );
+});

@@ -4,7 +4,15 @@ export const targets = {
   brave: 'dist-brave',
   firefox: 'dist-firefox',
 };
-export function browserManifest(base, target, google, ids, { publicBuild = false } = {}) {
+export function browserManifest(
+  base,
+  target,
+  google,
+  ids,
+  { publicBuild = false, chromeWebStore = false } = {},
+) {
+  if (chromeWebStore && (!publicBuild || target !== 'chrome'))
+    throw new Error('Chrome Web Store packages require the public Chrome build');
   if (!targets[target]) throw new Error('Build target must be chrome, edge, brave, or firefox');
   const manifest = structuredClone(base);
   if (target === 'chrome') {
@@ -17,7 +25,14 @@ export function browserManifest(base, target, google, ids, { publicBuild = false
     if (!publicBuild && google.extensionKey) manifest.key = google.extensionKey;
     // Public Chrome uses the same registered web callback as Edge/Brave. The
     // public SPKI key fixes its identity across folders without a store account.
-    if (publicBuild && google.enabled === true && google.webClientId) manifest.key = ids.edgeKey;
+    if (publicBuild && !chromeWebStore && google.enabled === true && google.webClientId)
+      manifest.key = ids.edgeKey;
+    if (chromeWebStore) {
+      // The existing Web Store item supplies its identity. A fixed development
+      // key would reject this update or bind it to a different extension ID.
+      delete manifest.key;
+      delete manifest.oauth2;
+    }
   } else {
     delete manifest.oauth2;
     // Brave shares the registered Chromium web-OAuth callback with Edge. Browser

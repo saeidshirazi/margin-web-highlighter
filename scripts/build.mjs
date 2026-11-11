@@ -6,7 +6,8 @@ import { logoSVG } from '../src/brand.js';
 import { browserManifest, targets } from './browser-manifest.mjs';
 const target = process.argv.find((value) => value.startsWith('--target='))?.slice(9) || 'chrome';
 if (!targets[target]) throw new Error('Unknown browser target');
-const publicBuild = process.argv.includes('--public');
+const chromeWebStore = process.argv.includes('--chrome-web-store');
+const publicBuild = process.argv.includes('--public') || chromeWebStore;
 const folder =
     process.argv.find((value) => value.startsWith('--outdir='))?.slice(9) || targets[target],
   dest = path.resolve(folder);
@@ -31,7 +32,10 @@ const relayUrl =
   '';
 if (relayUrl && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(relayUrl))
   throw new Error('The translation relay URL must be a Google Apps Script /exec URL.');
-const manifest = browserManifest(baseManifest, target, google, ids, { publicBuild });
+const manifest = browserManifest(baseManifest, target, google, ids, {
+  publicBuild,
+  chromeWebStore,
+});
 const oauthWebClientId = publicBuild
   ? google.webClientId || ''
   : target === 'chrome'

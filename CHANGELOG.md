@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.11
+
+- Align all browser packages and both Chrome installation variants in one versioned release.
+- Include the keyless Chrome upload ZIP in public release checksums while preserving fixed identities for unpacked installs.
+- Produce reproducible archives across build timezone, file ordering and text line endings.
+
+## 0.9.10
+
+- Add a dedicated Chrome Web Store package that omits the conflicting development key.
+- Keep fixed-ID unpacked Chrome, Edge and Brave builds unchanged.
+- Validate store package identity, public OAuth configuration, version and archive contents before upload.
+
 ## 0.9.9
 
 - Remember the last pronunciation voice chosen for each language.
