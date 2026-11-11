@@ -1,3 +1,4 @@
+import { closeTestBrowser } from './browser-cleanup.mjs';
 import assert from 'node:assert/strict';
 import { chromium, expect } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
@@ -17,6 +18,7 @@ context.on('page', (page) =>
       errors.push(`${page.url()}\n${error.stack || error.message}`);
   }),
 );
+let passed = false;
 try {
   const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
   const base = worker.url().replace('background.js', '');
@@ -570,6 +572,7 @@ try {
   console.log(
     `PASS ${browserTarget}: research tools, search, saved searches, related highlights, resume, encrypted restore preview, and offline proofreading.`,
   );
+  passed = true;
 } finally {
-  await context.close();
+  await closeTestBrowser(context, passed);
 }

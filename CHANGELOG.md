@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.12
+
+- Bound native browser test shutdown after assertions finish, preserving failed test outcomes.
+- Publish the unified browser and keyless Chrome packages with the verified test cleanup.
+
 ## 0.9.11
 
 - Align all browser packages and both Chrome installation variants in one versioned release.
