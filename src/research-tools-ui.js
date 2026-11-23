@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { localAI } from './ai.js';
+import { localAI, hasLocalAI } from './ai.js';
 import { explanationSource, keyPoints } from './key-points.js';
 import { dialog, esc, toast } from './ui.js';
 
@@ -36,7 +36,7 @@ export function openResearchTool(kind, page, highlight, refresh) {
   const generate = modal.querySelector('[data-generate-explanation]');
   const status = modal.querySelector('[data-explanation-status]');
   save.disabled = true;
-  if (typeof globalThis.LanguageModel?.create !== 'function') {
+  if (!hasLocalAI('text')) {
     status.textContent =
       'The local explanation model is unavailable on this browser or device. Key points works offline.';
     generate.disabled = true;

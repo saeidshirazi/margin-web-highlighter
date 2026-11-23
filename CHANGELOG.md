@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.15
+
+- Redesign on-device AI as a completely separate **AI Assistant** collapsible card below the note editor in the floating annotation box — no longer mixed with note formatting tools.
+- AI results (Explain / Summarize) now appear in a dedicated read-only result area inside the AI card, with **Add to note** and **Copy** actions. AI output is never automatically inserted into the note textarea.
+- Fix on-device AI availability check in the library Explain dialog to support both modern `window.ai.languageModel` and legacy `globalThis.LanguageModel` APIs — users on newer Chrome builds no longer see a false "unavailable" message.
+- Keep **Auto-tags** button alongside the Tags field for quick tag generation.
+- AI Assistant card is collapsed by default and expands on first use — click the ✦ AI Assistant header to toggle.
+
 ## 0.9.14
 
 - Add on-device AI tools (Explain, TL;DR, and Auto-tags) directly inside the on-page floating annotation editor.

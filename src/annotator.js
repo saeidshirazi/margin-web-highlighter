@@ -6,7 +6,7 @@ import { addSelectionSpeech } from './selection-speech.js';
 import { addProofreading } from './proofreading-ui.js';
 import { createDictation, speechAvailability } from './speech.js';
 import { localAI, hasLocalAI } from './ai.js';
-const css = `:host{all:initial;font-family:system-ui,sans-serif;color:#202c28;font-size:13px;line-height:1.5}*{box-sizing:border-box}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #dce4df;border-radius:8px;background:white;padding:7px 10px;color:#253d33}button:hover{background:#f1f6f3}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #4b9172;outline-offset:2px}.box{position:fixed;z-index:2147483647;background:#fff;border:1px solid #dce4df;border-radius:13px;box-shadow:0 8px 35px #10291e33;padding:9px;max-width:calc(100vw - 20px)}.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.swatch{width:27px;height:27px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b9c6bc}.swatch[aria-pressed=true]{box-shadow:0 0 0 2px #204c3b}.editor{width:330px}label{display:block;margin-top:10px;font-size:12px;font-weight:600}textarea,input[type=text]{width:100%;padding:8px;border:1px solid #d3ddd6;border-radius:7px;background:#fff;color:#202c28}textarea{height:100px;resize:vertical}input[type=color]{width:29px;height:29px;border:0;padding:0;background:none;cursor:pointer}.muted{color:#69786f;font-size:11px}.toast{bottom:20px;left:20px;max-width:440px}.quick{bottom:20px;right:20px}.danger{color:#a53635}.quote{max-height:80px;overflow:auto;margin:8px 0;padding:8px;background:#f3f7f3;border-radius:6px;white-space:pre-wrap}.tools button{padding:3px 8px;font-size:12px}.dictate-btn{display:inline-flex;align-items:center;justify-content:center;padding:3px 7px;vertical-align:middle}.dictate-btn.recording{background:#fee2e2;border-color:#ef4444;color:#b91c1c;animation:margin-mic-pulse 1.3s infinite ease-in-out}.dictate-btn svg{display:block;pointer-events:none}@keyframes margin-mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.45)}50%{box-shadow:0 0 0 5px rgba(239,68,68,0)}}.ai-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 7px;font-size:11px;border-color:#bbf7d0;background:#f0fdf4;color:#166534;vertical-align:middle}.ai-btn:hover{background:#dcfce7}.ai-btn svg{display:block;pointer-events:none}.ai-btn:disabled{opacity:0.6;cursor:not-allowed}.small-btn{padding:2px 6px;font-size:11px}.ai-status{margin:4px 0 0 0;font-size:11px;color:#166534}.ai-status:empty{display:none}`;
+const css = `:host{all:initial;font-family:system-ui,sans-serif;color:#202c28;font-size:13px;line-height:1.5}*{box-sizing:border-box}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #dce4df;border-radius:8px;background:white;padding:7px 10px;color:#253d33}button:hover{background:#f1f6f3}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #4b9172;outline-offset:2px}.box{position:fixed;z-index:2147483647;background:#fff;border:1px solid #dce4df;border-radius:13px;box-shadow:0 8px 35px #10291e33;padding:9px;max-width:calc(100vw - 20px)}.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.swatch{width:27px;height:27px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b9c6bc}.swatch[aria-pressed=true]{box-shadow:0 0 0 2px #204c3b}.editor{width:330px}label{display:block;margin-top:10px;font-size:12px;font-weight:600}textarea,input[type=text]{width:100%;padding:8px;border:1px solid #d3ddd6;border-radius:7px;background:#fff;color:#202c28}textarea{height:100px;resize:vertical}input[type=color]{width:29px;height:29px;border:0;padding:0;background:none;cursor:pointer}.muted{color:#69786f;font-size:11px}.toast{bottom:20px;left:20px;max-width:440px}.quick{bottom:20px;right:20px}.danger{color:#a53635}.quote{max-height:80px;overflow:auto;margin:8px 0;padding:8px;background:#f3f7f3;border-radius:6px;white-space:pre-wrap}.tools button{padding:3px 8px;font-size:12px}.dictate-btn{display:inline-flex;align-items:center;justify-content:center;padding:3px 7px;vertical-align:middle}.dictate-btn.recording{background:#fee2e2;border-color:#ef4444;color:#b91c1c;animation:margin-mic-pulse 1.3s infinite ease-in-out}.dictate-btn svg{display:block;pointer-events:none}@keyframes margin-mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.45)}50%{box-shadow:0 0 0 5px rgba(239,68,68,0)}}.small-btn{padding:2px 6px;font-size:11px}.ai-assist-box{margin:10px 0 4px;padding:8px 10px;border:1px solid #bbf7d0;border-radius:9px;background:#f0fdf4}.ai-assist-header{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#166534;margin-bottom:0;cursor:pointer;user-select:none}.ai-assist-header svg{display:block;pointer-events:none}.ai-assist-actions{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}.ai-action-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;font-size:11px;border:1px solid #bbf7d0;border-radius:7px;background:#f0fdf4;color:#166534;cursor:pointer}.ai-action-btn:hover{background:#dcfce7}.ai-action-btn svg{display:block;pointer-events:none}.ai-action-btn:disabled{opacity:0.55;cursor:not-allowed}.ai-status{margin:5px 0 0;font-size:11px;color:#166534;min-height:0}.ai-status:empty{display:none}.ai-result-box{margin-top:7px;padding:8px;border:1px solid #bbf7d0;border-radius:7px;background:#fff;font-size:11px;line-height:1.6;max-height:130px;overflow:auto;white-space:pre-wrap;color:#202c28}.ai-result-actions{display:flex;gap:5px;margin-top:5px}.ai-result-actions button{padding:2px 7px;font-size:11px;border:1px solid #dce4df;border-radius:6px;background:#fff;color:#253d33;cursor:pointer}.ai-result-actions button:hover{background:#f1f6f3}`;
 export function createAnnotator({
   root = document.body,
   load,
@@ -277,7 +277,7 @@ export function createAnnotator({
     box.className = 'box editor';
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-label', 'Edit highlight');
-    box.innerHTML = `<div class="row"><strong style="flex:1">Your annotation</strong><button data-close aria-label="Close annotation">×</button></div><div class="quote">${esc(item.text)}</div><div class="row" data-palette></div><label>Note <span class="muted">· Markdown supported</span><textarea data-note placeholder="What makes this worth keeping?">${esc(item.note)}</textarea></label><div class="row tools"><button data-format="**">Bold</button><button data-format="*">Italic</button><button data-format="\n- ">List</button><button data-format="&#96;">Code</button><button type="button" data-dictate class="dictate-btn" title="Voice to text" aria-label="Voice to text">${icon('mic', 13)}</button><button type="button" data-ai="explain" class="ai-btn" title="Explain quote with local AI" aria-label="Explain quote">${icon('spark', 12)} Explain</button><button type="button" data-ai="summary" class="ai-btn" title="Summarize quote with local AI" aria-label="Summarize quote">${icon('spark', 12)} TL;DR</button></div><p class="ai-status muted small" data-ai-status role="status"></p><div class="row between" style="margin-top:10px"><label style="margin:0">Tags <span class="muted">· separated by commas</span></label><button type="button" data-ai="tags" class="ai-btn small-btn" title="Suggest tags with local AI" aria-label="Suggest tags">${icon('spark', 11)} Auto-tags</button></div><input data-tags type="text" value="${esc(item.tags.join(', '))}" placeholder="research, idea"><div class="row" style="margin-top:12px"><button data-save>Save note</button><button data-library>Library</button><button data-delete class="danger">Delete</button></div>`;
+    box.innerHTML = `<div class="row"><strong style="flex:1">Your annotation</strong><button data-close aria-label="Close annotation">×</button></div><div class="quote">${esc(item.text)}</div><div class="row" data-palette></div><label>Note <span class="muted">· Markdown supported</span><textarea data-note placeholder="What makes this worth keeping?">${esc(item.note)}</textarea></label><div class="row tools"><button data-format="**">Bold</button><button data-format="*">Italic</button><button data-format="\n- ">List</button><button data-format="&#96;">Code</button><button type="button" data-dictate class="dictate-btn" title="Voice to text" aria-label="Voice to text">${icon('mic', 13)}</button></div><div class="ai-assist-box"><div class="ai-assist-header" data-ai-toggle role="button" tabindex="0" aria-expanded="false" aria-controls="ai-assist-body">${icon('spark', 13)}<strong style="flex:1;margin-left:5px">AI Assistant</strong><span class="muted" style="font-size:10px">on-device · private</span></div><div id="ai-assist-body" hidden><div class="ai-assist-actions"><button type="button" data-ai="explain" class="ai-action-btn">${icon('spark', 11)} Explain</button><button type="button" data-ai="summary" class="ai-action-btn">${icon('spark', 11)} Summarize</button></div><p class="ai-status" data-ai-status role="status"></p><div data-ai-result hidden><div class="ai-result-box" data-ai-result-text></div><div class="ai-result-actions"><button type="button" data-ai-add-to-note>Add to note</button><button type="button" data-ai-copy>Copy</button></div></div></div></div><div class="row between" style="margin-top:10px"><label style="margin:0">Tags <span class="muted">· separated by commas</span></label><button type="button" data-ai="tags" class="ai-action-btn" style="font-size:11px;padding:3px 8px" title="Suggest tags with on-device AI" aria-label="Suggest tags">${icon('spark', 11)} Auto-tags</button></div><input data-tags type="text" value="${esc(item.tags.join(', '))}" placeholder="research, idea"><div class="row" style="margin-top:12px"><button data-save>Save note</button><button data-library>Library</button><button data-delete class="danger">Delete</button></div>`;
     let chosen = item.color;
     palette(box.querySelector('[data-palette]'), chosen, async (c) => {
       chosen = c;
@@ -419,9 +419,25 @@ export function createAnnotator({
       }
     };
     dictateBtn.onclick = () => toggleDictation().catch((e) => toast(e.message));
+    const aiToggle = box.querySelector('[data-ai-toggle]');
+    const aiBody = box.querySelector('#ai-assist-body');
+    aiToggle.addEventListener('click', () => {
+      const expanded = aiBody.hidden === false;
+      aiBody.hidden = expanded;
+      aiToggle.setAttribute('aria-expanded', String(!expanded));
+    });
+    aiToggle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        aiToggle.click();
+      }
+    });
     const aiStatus = box.querySelector('[data-ai-status]');
     const aiButtons = box.querySelectorAll('[data-ai]');
+    const aiResultBox = box.querySelector('[data-ai-result]');
+    const aiResultText = box.querySelector('[data-ai-result-text]');
     let aiController;
+    let currentAIResult = '';
     stopAI = () => {
       aiController?.abort();
       aiController = undefined;
@@ -431,12 +447,18 @@ export function createAnnotator({
         toast('On-device AI is unavailable in this browser. Use Chrome with Gemini Nano.');
         return;
       }
+      // Expand panel when AI is triggered from outside (Auto-tags button)
+      if (kind !== 'tags' && aiBody.hidden) {
+        aiBody.hidden = false;
+        aiToggle.setAttribute('aria-expanded', 'true');
+      }
       aiController?.abort();
       aiController = new win.AbortController();
       const signal = aiController.signal;
       aiButtons.forEach((b) => (b.disabled = true));
       if (aiStatus)
         aiStatus.textContent = kind === 'tags' ? 'Generating tags…' : 'Working locally…';
+      if (kind !== 'tags' && aiResultBox) aiResultBox.hidden = true;
       try {
         const res = onAI
           ? await onAI(kind, item.text, signal)
@@ -466,11 +488,9 @@ export function createAnnotator({
           tagsInput.dispatchEvent(new win.Event('input', { bubbles: true }));
           toast('Tags suggested');
         } else {
-          const prefix = kind === 'explain' ? '**Explanation:** ' : '**Summary:**\n';
-          const formatted = prefix + String(res || '').trim();
-          field.value = field.value.trim() ? field.value + '\n\n' + formatted : formatted;
-          field.dispatchEvent(new win.Event('input', { bubbles: true }));
-          toast(kind === 'explain' ? 'Explanation added to note' : 'Summary added to note');
+          currentAIResult = String(res || '').trim();
+          if (aiResultText) aiResultText.textContent = currentAIResult;
+          if (aiResultBox) aiResultBox.hidden = false;
         }
         if (aiStatus) aiStatus.textContent = '';
       } catch (err) {
@@ -485,6 +505,28 @@ export function createAnnotator({
     aiButtons.forEach((b) => {
       b.onclick = () => runAnnotationAI(b.dataset.ai);
     });
+    const aiAddToNote = box.querySelector('[data-ai-add-to-note]');
+    const aiCopy = box.querySelector('[data-ai-copy]');
+    if (aiAddToNote) {
+      aiAddToNote.onclick = () => {
+        if (!currentAIResult) return;
+        field.value = field.value.trim() ? field.value + '\n\n' + currentAIResult : currentAIResult;
+        field.dispatchEvent(new win.Event('input', { bubbles: true }));
+        toast('AI result added to note');
+        field.focus();
+      };
+    }
+    if (aiCopy) {
+      aiCopy.onclick = async () => {
+        if (!currentAIResult) return;
+        try {
+          await win.navigator.clipboard.writeText(currentAIResult);
+          toast('Copied to clipboard');
+        } catch {
+          toast('Copy failed — try selecting and copying the text manually.');
+        }
+      };
+    }
     box.querySelector('[data-save]').onclick = async () => {
       aiController?.abort();
       if (dictation?.active) {
