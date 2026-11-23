@@ -165,3 +165,26 @@ test('closing a note while local availability is pending never starts its microp
   await pending;
   assert.equal(f.controller.active, false);
 });
+test('dictation controller handles toggle lifecycle and clean disposal on note edit', async () => {
+  const f = fixture();
+  await f.controller.start({ language: 'en-US' });
+  assert.equal(f.controller.active, true);
+  // Live speech chunk inserts into field
+  const finalChunk = [{ transcript: 'Note transcription' }];
+  finalChunk.isFinal = true;
+  f.instance.onresult({ resultIndex: 0, results: [finalChunk] });
+  assert.equal(f.field.value, 'Note transcription');
+  // Stopping dictation
+  await f.controller.stop();
+  assert.equal(f.controller.active, false);
+  f.controller.dispose();
+});
+test('speech availability and dictation handle unsupported browser environments gracefully', async () => {
+  const doc = new JSDOM('<textarea></textarea>').window.document;
+  const field = doc.querySelector('textarea');
+  const emptyEnv = {};
+  const controller = createDictation({ field, env: emptyEnv });
+  await assert.rejects(controller.start({ language: 'en-US' }), /unavailable in this browser/);
+  assert.equal(controller.active, false);
+  controller.dispose();
+});

@@ -4,7 +4,8 @@ import { api } from './api.js';
 import { icon } from './ui.js';
 import { addSelectionSpeech } from './selection-speech.js';
 import { addProofreading } from './proofreading-ui.js';
-const css = `:host{all:initial;font-family:system-ui,sans-serif;color:#202c28;font-size:13px;line-height:1.5}*{box-sizing:border-box}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #dce4df;border-radius:8px;background:white;padding:7px 10px;color:#253d33}button:hover{background:#f1f6f3}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #4b9172;outline-offset:2px}.box{position:fixed;z-index:2147483647;background:#fff;border:1px solid #dce4df;border-radius:13px;box-shadow:0 8px 35px #10291e33;padding:9px;max-width:calc(100vw - 20px)}.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.swatch{width:27px;height:27px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b9c6bc}.swatch[aria-pressed=true]{box-shadow:0 0 0 2px #204c3b}.editor{width:330px}label{display:block;margin-top:10px;font-size:12px;font-weight:600}textarea,input[type=text]{width:100%;padding:8px;border:1px solid #d3ddd6;border-radius:7px;background:#fff;color:#202c28}textarea{height:100px;resize:vertical}input[type=color]{width:29px;height:29px;border:0;padding:0;background:none;cursor:pointer}.muted{color:#69786f;font-size:11px}.toast{bottom:20px;left:20px;max-width:440px}.quick{bottom:20px;right:20px}.danger{color:#a53635}.quote{max-height:80px;overflow:auto;margin:8px 0;padding:8px;background:#f3f7f3;border-radius:6px;white-space:pre-wrap}.tools button{padding:3px 8px;font-size:12px}`;
+import { createDictation, speechAvailability } from './speech.js';
+const css = `:host{all:initial;font-family:system-ui,sans-serif;color:#202c28;font-size:13px;line-height:1.5}*{box-sizing:border-box}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #dce4df;border-radius:8px;background:white;padding:7px 10px;color:#253d33}button:hover{background:#f1f6f3}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #4b9172;outline-offset:2px}.box{position:fixed;z-index:2147483647;background:#fff;border:1px solid #dce4df;border-radius:13px;box-shadow:0 8px 35px #10291e33;padding:9px;max-width:calc(100vw - 20px)}.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.swatch{width:27px;height:27px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #b9c6bc}.swatch[aria-pressed=true]{box-shadow:0 0 0 2px #204c3b}.editor{width:330px}label{display:block;margin-top:10px;font-size:12px;font-weight:600}textarea,input[type=text]{width:100%;padding:8px;border:1px solid #d3ddd6;border-radius:7px;background:#fff;color:#202c28}textarea{height:100px;resize:vertical}input[type=color]{width:29px;height:29px;border:0;padding:0;background:none;cursor:pointer}.muted{color:#69786f;font-size:11px}.toast{bottom:20px;left:20px;max-width:440px}.quick{bottom:20px;right:20px}.danger{color:#a53635}.quote{max-height:80px;overflow:auto;margin:8px 0;padding:8px;background:#f3f7f3;border-radius:6px;white-space:pre-wrap}.tools button{padding:3px 8px;font-size:12px}.dictate-btn{display:inline-flex;align-items:center;justify-content:center;padding:3px 7px;vertical-align:middle}.dictate-btn.recording{background:#fee2e2;border-color:#ef4444;color:#b91c1c;animation:margin-mic-pulse 1.3s infinite ease-in-out}.dictate-btn svg{display:block;pointer-events:none}@keyframes margin-mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.45)}50%{box-shadow:0 0 0 5px rgba(239,68,68,0)}}`;
 export function createAnnotator({
   root = document.body,
   load,
@@ -50,7 +51,7 @@ export function createAnnotator({
     lastDeleted,
     refreshTimer,
     focusTimer;
-  let repairing, stopSelectionSpeech, stopProofreading;
+  let repairing, stopSelectionSpeech, stopProofreading, stopDictation;
   function cancelRepair() {
     repairing = null;
     delete host.dataset.marginMode;
@@ -139,6 +140,8 @@ export function createAnnotator({
     stopSelectionSpeech = undefined;
     stopProofreading?.();
     stopProofreading = undefined;
+    stopDictation?.();
+    stopDictation = undefined;
     box?.remove();
     box = null;
   }
@@ -270,7 +273,7 @@ export function createAnnotator({
     box.className = 'box editor';
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-label', 'Edit highlight');
-    box.innerHTML = `<div class="row"><strong style="flex:1">Your annotation</strong><button data-close aria-label="Close annotation">×</button></div><div class="quote">${esc(item.text)}</div><div class="row" data-palette></div><label>Note <span class="muted">· Markdown supported</span><textarea data-note placeholder="What makes this worth keeping?">${esc(item.note)}</textarea></label><div class="row tools"><button data-format="**">Bold</button><button data-format="*">Italic</button><button data-format="\n- ">List</button><button data-format="&#96;">Code</button></div><label>Tags <span class="muted">· separated by commas</span><input data-tags type="text" value="${esc(item.tags.join(', '))}" placeholder="research, idea"></label><div class="row" style="margin-top:12px"><button data-save>Save note</button><button data-library>Library</button><button data-delete class="danger">Delete</button></div>`;
+    box.innerHTML = `<div class="row"><strong style="flex:1">Your annotation</strong><button data-close aria-label="Close annotation">×</button></div><div class="quote">${esc(item.text)}</div><div class="row" data-palette></div><label>Note <span class="muted">· Markdown supported</span><textarea data-note placeholder="What makes this worth keeping?">${esc(item.note)}</textarea></label><div class="row tools"><button data-format="**">Bold</button><button data-format="*">Italic</button><button data-format="\n- ">List</button><button data-format="&#96;">Code</button><button type="button" data-dictate class="dictate-btn" title="Voice to text" aria-label="Voice to text">${icon('mic', 13)}</button></div><label>Tags <span class="muted">· separated by commas</span><input data-tags type="text" value="${esc(item.tags.join(', '))}" placeholder="research, idea"></label><div class="row" style="margin-top:12px"><button data-save>Save note</button><button data-library>Library</button><button data-delete class="danger">Delete</button></div>`;
     let chosen = item.color;
     palette(box.querySelector('[data-palette]'), chosen, async (c) => {
       chosen = c;
@@ -352,7 +355,70 @@ export function createAnnotator({
           field.focus();
         }),
     );
+    const dictateBtn = box.querySelector('[data-dictate]');
+    const speechSupported = !!(win.SpeechRecognition || win.webkitSpeechRecognition);
+    if (!speechSupported) {
+      dictateBtn.title =
+        'Voice to text is not supported in this browser. You can type or attach audio.';
+      dictateBtn.setAttribute('aria-disabled', 'true');
+    }
+    let dictation;
+    const toggleDictation = async () => {
+      if (!speechSupported) {
+        toast(
+          'Dictation is not available in this browser. You can type your note or use voice note.',
+        );
+        return;
+      }
+      if (!dictation) {
+        dictation = createDictation({
+          field,
+          env: win,
+          onState: (state) => {
+            if (state.active) {
+              dictateBtn.classList.add('recording');
+              dictateBtn.setAttribute('aria-pressed', 'true');
+              dictateBtn.title = state.message || 'Listening… Click microphone to stop';
+            } else {
+              dictateBtn.classList.remove('recording');
+              dictateBtn.setAttribute('aria-pressed', 'false');
+              dictateBtn.title = 'Voice to text';
+              if (state.status === 'error') toast(state.message);
+            }
+          },
+        });
+        stopDictation = () => {
+          dictation?.dispose();
+          dictation = undefined;
+        };
+      }
+      if (dictation.active) {
+        await dictation.stop();
+      } else {
+        try {
+          if (win.navigator.mediaDevices?.getUserMedia) {
+            const stream = await win.navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach((track) => track.stop());
+          }
+          const lang = data.settings.voiceLanguage || 'en-US';
+          let mode = 'local';
+          try {
+            const avail = await speechAvailability(lang, win);
+            if (!avail.ready) mode = 'browser';
+          } catch {
+            mode = 'browser';
+          }
+          await dictation.start({ language: lang, mode, onlineConsent: true });
+        } catch (e) {
+          toast(e.message);
+        }
+      }
+    };
+    dictateBtn.onclick = () => toggleDictation().catch((e) => toast(e.message));
     box.querySelector('[data-save]').onclick = async () => {
+      if (dictation?.active) {
+        await dictation.stop().catch(() => {});
+      }
       const patch = {
         note: field.value,
         tags: box.querySelector('[data-tags]').value,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.13
+
+- Add built-in voice-to-text dictation with a microphone icon in the on-page floating annotation editor, note modals, and the side panel quick note.
+- Support live speech transcription with intelligent cursor insertion and active recording pulse indicator across all supported browsers.
+
 ## 0.9.12
 
 - Bound native browser test shutdown after assertions finish, preserving failed test outcomes.

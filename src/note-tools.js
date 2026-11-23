@@ -5,6 +5,7 @@ import { escapeHtml as esc } from './core.js';
 import { createAudioRecorder } from './audio.js';
 import { persistRecording } from './audio-notes.js';
 import { addProofreading } from './proofreading-ui.js';
+import { icon } from './ui.js';
 
 export function enhanceNotes(modal) {
   const fields = modal.querySelectorAll('textarea[name=note]');
@@ -14,7 +15,7 @@ export function enhanceNotes(modal) {
     field.dir = 'auto';
     const tools = document.createElement('details');
     tools.className = 'note-assist';
-    tools.innerHTML = `<summary>Voice & translation tools</summary><div class="speech-controls"><label class="field">Spoken language<input data-speech-language list="speech-languages" value="en-US" aria-label="Spoken language"></label><datalist id="speech-languages">${LANGUAGES.map(([code, name]) => `<option value="${speechLocale(code)}">${esc(name)}</option>`).join('')}</datalist><label class="field">Speech processing<select data-speech-mode><option value="local">On-device</option><option value="browser">Browser speech service · may be online</option></select></label><label data-speech-consent class="cloud-consent" hidden><input type="checkbox"> Allow the browser’s speech service to process my audio online. Margin does not store audio.</label><div class="row wrap"><button type="button" data-speech-start>● Start dictation</button><button type="button" data-speech-stop disabled>Stop</button><button type="button" data-speech-install>Download local language pack</button></div><p data-speech-status class="speech-status" role="status" aria-live="polite">Final words are inserted at your cursor. Live words appear here until confirmed.</p><div class="row wrap"><button type="button" data-note-translate>Translate this note</button><button type="button" data-speech-preference>Save spoken-language default</button></div></div>`;
+    tools.innerHTML = `<summary>Voice & translation tools</summary><div class="speech-controls"><label class="field">Spoken language<input data-speech-language list="speech-languages" value="en-US" aria-label="Spoken language"></label><datalist id="speech-languages">${LANGUAGES.map(([code, name]) => `<option value="${speechLocale(code)}">${esc(name)}</option>`).join('')}</datalist><label class="field">Speech processing<select data-speech-mode><option value="local">On-device</option><option value="browser">Browser speech service · may be online</option></select></label><label data-speech-consent class="cloud-consent" hidden><input type="checkbox"> Allow the browser’s speech service to process my audio online. Margin does not store audio.</label><div class="row wrap"><button type="button" data-speech-start>${icon('mic', 14)} Start dictation</button><button type="button" data-speech-stop disabled>Stop</button><button type="button" data-speech-install>Download local language pack</button></div><p data-speech-status class="speech-status" role="status" aria-live="polite">Final words are inserted at your cursor. Live words appear here until confirmed.</p><div class="row wrap"><button type="button" data-note-translate>Translate this note</button><button type="button" data-speech-preference>Save spoken-language default</button></div></div>`;
     field.closest('label')?.after(tools);
     if (!tools.isConnected) field.after(tools);
     const q = (s) => tools.querySelector(s),
@@ -27,6 +28,11 @@ export function enhanceNotes(modal) {
     audioArea.innerHTML =
       '<div class="row wrap"><button type="button" data-audio-record>Record voice</button><button type="button" data-audio-stop disabled>Stop recording</button><label class="audio-import">Attach audio<input type="file" data-audio-file accept="audio/*,.webm,.mp3,.m4a,.ogg,.wav" hidden></label></div><p data-audio-status class="muted small" role="status">Record a voice note or attach an audio file. Audio is saved locally with the note (up to 5 minutes / 20 MB).</p><div data-audio-pending></div>';
     tools.before(audioArea);
+    const quickBar = document.createElement('div');
+    quickBar.className = 'quick-mic-bar row wrap';
+    quickBar.innerHTML = `<button type="button" class="quick-mic-btn" data-quick-dictate title="Voice to text" aria-label="Voice to text">${icon('mic', 15)} <span>Voice to text</span></button>`;
+    audioArea.before(quickBar);
+    const quickMic = quickBar.querySelector('[data-quick-dictate]');
     addProofreading(field, modal);
     function addPending(value) {
       const id = crypto.randomUUID();
@@ -165,8 +171,40 @@ export function enhanceNotes(modal) {
         q('[data-speech-stop]').disabled = !state.active;
         q('[data-speech-mode]').disabled = state.active;
         q('[data-speech-language]').disabled = state.active;
+        quickMic.classList.toggle('recording', state.active);
+        quickMic.setAttribute('aria-pressed', state.active ? 'true' : 'false');
+        quickMic.querySelector('span').textContent = state.active
+          ? 'Stop dictation'
+          : 'Voice to text';
+        quickMic.title = state.active ? 'Listening… Click to stop' : 'Voice to text';
       },
     });
+    quickMic.onclick = async () => {
+      if (speech.active) {
+        await speech.stop().catch(report);
+      } else {
+        try {
+          await recorder.stop();
+          if (navigator.mediaDevices?.getUserMedia) {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach((track) => track.stop());
+          }
+          const lang = q('[data-speech-language]').value || 'en-US';
+          let mode = q('[data-speech-mode]').value;
+          if (mode === 'local') {
+            const avail = await speechAvailability(lang);
+            if (!avail.ready) mode = 'browser';
+          }
+          await speech.start({
+            language: lang,
+            mode,
+            onlineConsent: true,
+          });
+        } catch (e) {
+          report(e);
+        }
+      }
+    };
     api('preferences')
       .then((settings) => {
         if (tools.isConnected) {
@@ -186,10 +224,14 @@ export function enhanceNotes(modal) {
       if (!(globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition)) {
         q('[data-speech-start]').disabled = true;
         q('[data-speech-install]').disabled = true;
+        quickMic.disabled = true;
+        quickMic.title = 'Dictation is not available in this browser. Recording audio still works.';
         status.textContent =
           'Dictation is not available in this browser. Record or attach audio, or type your note.';
         return;
       }
+      quickMic.disabled = false;
+      quickMic.title = 'Voice to text';
       if (q('[data-speech-mode]').value === 'browser') {
         q('[data-speech-start]').disabled = false;
         status.textContent =

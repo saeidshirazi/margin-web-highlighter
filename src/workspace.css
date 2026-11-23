@@ -289,6 +289,55 @@
   border-color: #bd7d65;
   color: #a34232;
 }
+.quick-mic-bar {
+  margin: 8px 0 12px;
+}
+.quick-mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  transition: all 0.2s ease;
+}
+.quick-mic-btn:hover {
+  background: var(--bg);
+}
+.quick-mic-btn svg {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.quick-mic-btn.recording {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  color: #b91c1c !important;
+  animation: margin-mic-pulse 1.4s infinite ease-in-out;
+}
+.quick-mic-btn.recording svg {
+  stroke: #dc2626;
+}
+[data-theme='dark'] .quick-mic-btn.recording {
+  background: #451a1a !important;
+  border-color: #f87171 !important;
+  color: #fca5a5 !important;
+}
+[data-theme='dark'] .quick-mic-btn.recording svg {
+  stroke: #f87171;
+}
+@keyframes margin-mic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
+  }
+}
 .cloud-consent {
   display: flex;
   align-items: flex-start;
