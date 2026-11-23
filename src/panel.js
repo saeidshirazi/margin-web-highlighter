@@ -6,8 +6,10 @@ import { toMarkdown } from './core.js';
 import { renderAudioNotes } from './audio-notes.js';
 import { openReadAloud } from './read-aloud.js';
 import { createDictation, speechAvailability } from './speech.js';
+import { localAI, hasLocalAI } from './ai.js';
 let releaseAudio = () => {};
 let quickDictation;
+let panelAIController;
 const root = document.querySelector('#app');
 let tab;
 let renderVersion = 0;
@@ -24,6 +26,8 @@ async function render() {
   releaseAudio();
   quickDictation?.dispose();
   quickDictation = null;
+  panelAIController?.abort();
+  panelAIController = null;
   [tab] = await extension.tabs.query({ active: true, currentWindow: true });
   let url = tab?.url;
   try {
@@ -38,7 +42,7 @@ async function render() {
   const data = await api('page-data', { url });
   if (version !== renderVersion) return;
   applyTheme(data.settings.theme);
-  root.innerHTML = `<div class="panel"><div class="row between"><div class="brand">${icon('logo', 24)}margin</div><button class="icon-btn" id="library" aria-label="Open library">${icon('external')}</button></div><h1>${esc(data.page?.title || tab.title || 'This page')}</h1><p class="muted small">${data.highlights.length} highlights · saved on your device</p><div class="row wrap"><button id="save">${icon('bookmark', 15)}Save</button><button id="reader">${icon('book', 15)}Reader</button><button id="quick">${icon('flash', 15)}Quick</button><button id="note">+ Page note</button><button id="copy">Copy</button></div><section class="quick-inline"><label class="field">Quick note<textarea id="quick-note-text" rows="3" placeholder="Capture a thought while highlighting…" dir="auto">${esc(quickDrafts.get(url) || '')}</textarea></label><div class="row wrap"><button id="quick-note-save" class="primary">Save quick note</button><button id="quick-dictate" type="button" class="quick-mic-btn" title="Voice to text" aria-label="Voice to text">${icon('mic', 15)} <span>Dictate</span></button><button id="record-voice">Record / dictate</button><button id="read-aloud">Read aloud</button></div><p id="quick-status" class="muted small" role="status"></p></section><div id="page-audio"></div>${data.page?.note ? `<div class="annotation note-preview">${renderMarkdown(data.page.note)}</div>` : ''}${data.highlights.map((h) => `<article class="annotation" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${renderMarkdown(h.note || '')}</div><div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="row" style="margin-top:10px"><button class="ghost small" data-focus="${esc(h.id)}">Find on page</button><button class="ghost small" data-edit="${esc(h.id)}">Edit</button></div></article>`).join('')}${data.highlights.length ? '' : '<div class="empty" style="margin-top:25px;padding:20px;min-height:210px"><h3>A thought worth keeping?</h3><p class="small">Select text on this page and choose a color. It will appear here automatically.</p></div>'}</div>`;
+  root.innerHTML = `<div class="panel"><div class="row between"><div class="brand">${icon('logo', 24)}margin</div><button class="icon-btn" id="library" aria-label="Open library">${icon('external')}</button></div><h1>${esc(data.page?.title || tab.title || 'This page')}</h1><p class="muted small">${data.highlights.length} highlights · saved on your device</p><div class="row wrap"><button id="save">${icon('bookmark', 15)}Save</button><button id="reader">${icon('book', 15)}Reader</button><button id="quick">${icon('flash', 15)}Quick</button><button id="note">+ Page note</button><button id="copy">Copy</button></div><section class="quick-inline"><label class="field">Quick note<textarea id="quick-note-text" rows="3" placeholder="Capture a thought while highlighting…" dir="auto">${esc(quickDrafts.get(url) || '')}</textarea></label><div class="row wrap"><button id="quick-note-save" class="primary">Save quick note</button><button id="quick-dictate" type="button" class="quick-mic-btn" title="Voice to text" aria-label="Voice to text">${icon('mic', 15)} <span>Dictate</span></button><button id="record-voice">Record / dictate</button><button id="read-aloud">Read aloud</button></div><p id="quick-status" class="muted small" role="status"></p></section><section class="ai-panel-section"><div class="row between"><strong class="small" style="display:flex;align-items:center;gap:5px">${icon('spark', 14)} On-Device AI</strong><button id="ai-page-summary" type="button" class="ghost small ai-btn" title="Summarize current page with local AI">${icon('spark', 12)} Summary</button></div><div class="ai-prompt-row row" style="margin-top:8px"><input id="ai-page-query" type="text" placeholder="Ask about this page…" dir="auto" style="flex:1" /><button id="ai-page-ask" type="button" class="primary small" style="min-width:48px">Ask</button></div><p id="ai-panel-status" class="muted small" role="status" style="margin:4px 0 0 0"></p><div id="ai-panel-output" class="ai-panel-card" hidden><div class="row between" style="margin-bottom:6px"><strong class="muted small" id="ai-output-title">Answer</strong><div class="row" style="gap:4px"><button id="ai-copy-output" class="ghost small">Copy</button><button id="ai-save-output" class="ghost small">Save to note</button></div></div><div id="ai-output-content" class="note-preview small"></div></div></section><div id="page-audio"></div>${data.page?.note ? `<div class="annotation note-preview">${renderMarkdown(data.page.note)}</div>` : ''}${data.highlights.map((h) => `<article class="annotation" style="--highlight:${h.color}"><blockquote>${esc(h.text)}</blockquote><div class="note-preview">${renderMarkdown(h.note || '')}</div><div class="tags">${h.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div><div class="row" style="margin-top:10px"><button class="ghost small" data-focus="${esc(h.id)}">Find on page</button><button class="ghost small" data-edit="${esc(h.id)}">Edit</button></div></article>`).join('')}${data.highlights.length ? '' : '<div class="empty" style="margin-top:25px;padding:20px;min-height:210px"><h3>A thought worth keeping?</h3><p class="small">Select text on this page and choose a color. It will appear here automatically.</p></div>'}</div>`;
   root.querySelector('#library').onclick = () => api('open-library', { id: data.page?.id });
   root.querySelector('#quick-note-text').oninput = (e) => quickDrafts.set(url, e.target.value);
   const speechSupported = !!(globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition);
@@ -113,6 +117,102 @@ async function render() {
     renderAudioNotes(root.querySelector('#page-audio'), { pageId: data.page.id })
       .then((fn) => (releaseAudio = fn))
       .catch((e) => toast(e.message));
+  const aiSummaryBtn = root.querySelector('#ai-page-summary');
+  const aiAskBtn = root.querySelector('#ai-page-ask');
+  const aiQueryInput = root.querySelector('#ai-page-query');
+  const aiStatus = root.querySelector('#ai-panel-status');
+  const aiOutput = root.querySelector('#ai-panel-output');
+  const aiOutputTitle = root.querySelector('#ai-output-title');
+  const aiOutputContent = root.querySelector('#ai-output-content');
+  const aiCopyBtn = root.querySelector('#ai-copy-output');
+  const aiSaveBtn = root.querySelector('#ai-save-output');
+  let currentAIResult = '';
+  let currentAITitle = '';
+
+  const getPageText = async () => {
+    if (data.page?.text) return data.page.text;
+    try {
+      const res = await send('capture');
+      if (res?.data?.text) return res.data.text;
+      if (res?.text) return res.text;
+    } catch {}
+    const highlightText = data.highlights.map((h) => h.text).join('\n\n');
+    if (highlightText) return highlightText;
+    throw new Error('Save this page or select text first to use On-Device AI.');
+  };
+
+  const runPanelAI = async (kind, question = '') => {
+    if (!hasLocalAI(kind === 'summary' ? 'summary' : 'text')) {
+      aiStatus.textContent =
+        'On-device AI is unavailable in this browser. Use Chrome with Gemini Nano.';
+      return;
+    }
+    panelAIController?.abort();
+    panelAIController = new AbortController();
+    const signal = panelAIController.signal;
+    aiSummaryBtn.disabled = true;
+    aiAskBtn.disabled = true;
+    aiStatus.textContent = kind === 'summary' ? 'Summarizing page locally…' : 'Thinking locally…';
+    aiOutput.hidden = true;
+    try {
+      const pageText = await getPageText();
+      const res = await localAI(
+        kind,
+        pageText,
+        question,
+        (s) => {
+          aiStatus.textContent = s;
+        },
+        signal,
+      );
+      if (signal.aborted) return;
+      currentAIResult = (res || '').trim();
+      currentAITitle = kind === 'summary' ? 'Page Summary' : `Q: ${question}`;
+      aiOutputTitle.textContent = currentAITitle;
+      aiOutputContent.innerHTML = renderMarkdown(currentAIResult);
+      aiOutput.hidden = false;
+      aiStatus.textContent = '';
+    } catch (err) {
+      if (!signal.aborted) {
+        aiStatus.textContent = err.message;
+      }
+    } finally {
+      aiSummaryBtn.disabled = false;
+      aiAskBtn.disabled = false;
+    }
+  };
+
+  aiSummaryBtn.onclick = () => runPanelAI('summary').catch((e) => toast(e.message));
+  aiAskBtn.onclick = () => {
+    const q = aiQueryInput.value.trim();
+    if (!q) return;
+    runPanelAI('chat', q).catch((e) => toast(e.message));
+  };
+  aiQueryInput.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      aiAskBtn.click();
+    }
+  };
+  aiCopyBtn.onclick = async () => {
+    if (!currentAIResult) return;
+    await navigator.clipboard.writeText(currentAIResult);
+    toast('Copied to clipboard');
+  };
+  aiSaveBtn.onclick = async () => {
+    if (!currentAIResult) return;
+    try {
+      const p = data.page || (await api('save-page', { url, title: tab.title || url }));
+      await api('append-note', {
+        pageId: p.id,
+        text: `### ${currentAITitle}\n\n${currentAIResult}`,
+      });
+      toast('Saved to page note');
+      await render();
+    } catch (e) {
+      toast(e.message);
+    }
+  };
   for (const [id, action] of [
     ['save', 'bookmark'],
     ['reader', 'reader'],

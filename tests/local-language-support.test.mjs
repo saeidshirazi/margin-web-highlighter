@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { localTranslate } from '../src/translation.js';
 import { speechAvailability } from '../src/speech.js';
 import { localLanguage, localTranslationSupport } from '../src/local-language-support.js';
-import { localAI } from '../src/ai.js';
+import { localAI, hasLocalAI } from '../src/ai.js';
 
 test('unsupported languages are rejected before any native model probe', async () => {
   let probes = 0;
@@ -112,4 +112,53 @@ test('summaries use the same explicit supported output language for probe and cr
     if (original === undefined) delete globalThis.Summarizer;
     else globalThis.Summarizer = original;
   }
+});
+test('localAI resolves modern window.ai namespaces and supports tags and simplify', async () => {
+  const prompts = [];
+  const fakeWin = {
+    ai: {
+      languageModel: {
+        availability: async () => 'available',
+        create: async () => ({
+          prompt: async (text) => {
+            prompts.push(text);
+            if (text.includes('tags')) return 'ai, machine-learning, research';
+            if (text.includes('clear, simple language')) return 'This is simple text.';
+            return 'Answer';
+          },
+          destroy() {},
+        }),
+      },
+    },
+  };
+  assert.equal(hasLocalAI('text', fakeWin), true);
+  assert.equal(hasLocalAI('summary', fakeWin), false);
+  const tags = await localAI(
+    'tags',
+    'Deep neural networks learn representations.',
+    '',
+    () => {},
+    null,
+    fakeWin,
+  );
+  assert.equal(tags, 'ai, machine-learning, research');
+  assert.ok(prompts[0].includes('tags'));
+  const simple = await localAI(
+    'simplify',
+    'Exorbitant nomenclature obfuscates semantics.',
+    '',
+    () => {},
+    null,
+    fakeWin,
+  );
+  assert.equal(simple, 'This is simple text.');
+  assert.ok(prompts[1].includes('clear, simple language'));
+});
+test('localAI handles abort signal cleanly', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    localAI('explain', 'Sample text', '', () => {}, controller.signal),
+    /unavailable|Abort/i,
+  );
 });

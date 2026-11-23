@@ -25,6 +25,8 @@ const paths = {
   mic: 'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0z M6 10v2a6 6 0 0 0 12 0v-2 M12 18v4 M8 22h8',
   languages: 'M3 5h12 M9 2v3 M6 5c0 6 4 10 9 12 M12 5c0 5-3 9-8 12 M14 21l4-10 4 10 M16 17h4',
   speaker: 'M3 9v6h4l5 4V5L7 9z M16 9a4 4 0 0 1 0 6 M19 6a8 8 0 0 1 0 12',
+  spark:
+    'M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z',
 };
 export const icon = (name, size = 18) =>
   name === 'logo'

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.14
+
+- Add on-device AI tools (Explain, TL;DR, and Auto-tags) directly inside the on-page floating annotation editor.
+- Add an On-Device AI assistant to the browser side panel for 1-click page summaries and grounded Q&A with Markdown copy and save-to-note capabilities.
+- Modernize local AI support for both modern `window.ai` namespaces (`languageModel` / `summarizer`) and legacy Prompt API globals.
+
 ## 0.9.13
 
 - Add built-in voice-to-text dictation with a microphone icon in the on-page floating annotation editor, note modals, and the side panel quick note.
